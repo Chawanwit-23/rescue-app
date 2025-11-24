@@ -4,8 +4,10 @@ import { collection, onSnapshot, query, doc, updateDoc } from "firebase/firestor
 import { MapContainer, TileLayer, Marker, Popup, useMap } from "react-leaflet";
 import "leaflet/dist/leaflet.css";
 import L from "leaflet";
-// เพิ่มไอคอน Activity, Users
-import { AlertTriangle, Phone, Clock, RefreshCw, CheckCircle, Navigation, ArrowRightCircle, Activity, Users } from "lucide-react";
+import * as LucideIcons from "lucide-react"; // 👈 FIX: Import ทั้งหมดเพื่อแก้ TS6133
+
+// ดึงไอคอนที่ใช้ใน Dashboard.tsx ออกมา
+const { AlertTriangle, Phone, Clock, RefreshCw, CheckCircle, Navigation, ArrowRightCircle, Activity, Users } = LucideIcons as any;
 
 // --- Icons ---
 const createIcon = (url: string) => new L.Icon({
@@ -72,6 +74,11 @@ export default function Dashboard() {
     window.open(`https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}`, '_blank');
   };
 
+  const formatTime = (timestamp: any) => {
+    if (!timestamp) return "";
+    return new Date(timestamp.seconds * 1000).toLocaleTimeString("th-TH", { hour: '2-digit', minute: '2-digit' });
+  };
+
   return (
     <div className="flex h-screen bg-gray-100 overflow-hidden font-sans">
       
@@ -132,6 +139,7 @@ export default function Dashboard() {
                            <CheckCircle size={10}/> จบงาน
                          </span>
                       )}
+                      
                       {isWorking && !isDone && <span className="text-[10px] text-orange-600 font-bold flex items-center gap-1"><RefreshCw size={10} className="animate-spin"/> กำลังช่วย</span>}
                     </div>
 

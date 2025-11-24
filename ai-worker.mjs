@@ -13,7 +13,7 @@ const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 
 // 2. ใส่ Firebase Config (ก๊อปมาจากไฟล์ src/firebase.ts ได้เลย)
 const FIREBASE_CONFIG = {
-  apiKey: "AIzaSyCiUYuGveDtyySIcX3aYoskQDw8PoTbPR8",
+  apiKey: "process.env.FIREBASE_API_KEY",
   authDomain: "flood-rescue-ai.firebaseapp.com",
   projectId: "flood-rescue-ai",
   storageBucket: "flood-rescue-ai.firebasestorage.app",

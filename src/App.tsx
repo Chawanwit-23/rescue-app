@@ -1,40 +1,16 @@
-import { useState, useEffect } from "react";
+import { useState, Suspense, lazy } from "react"; // 👈 FIX: ใช้ lazy/Suspense แทน dynamic
 import { Link } from "react-router-dom";
 import { db } from "./firebase";
 import { collection, addDoc } from "firebase/firestore";
-import { MapContainer, TileLayer, Marker, useMap, useMapEvents } from "react-leaflet";
-import "leaflet/dist/leaflet.css";
-import L from "leaflet";
-import { Camera, MapPin, Send, AlertTriangle, User, Phone, FileText, Loader2, Crosshair, LayoutDashboard, ShieldCheck } from "lucide-react";
-// --- แก้ไอคอนหมุด ---
-const iconDefault = new L.Icon({
-  iconUrl: "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon.png",
-  shadowUrl: "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png",
-  iconSize: [25, 41],
-  iconAnchor: [12, 41],
-  popupAnchor: [1, -34]
-});
+import "leaflet/dist/leaflet.css"; // ต้อง Import CSS ตรงนี้
+import * as LucideIcons from "lucide-react"; 
 
-// --- Component จัดการแผนที่ ---
-function LocationMarker({ location, setLocation }: any) {
-  const map = useMap();
+// ดึงไอคอนที่ใช้ใน App.tsx ออกมา (เพื่อแก้ Build Error)
+const { Camera, MapPin, Send, AlertTriangle, User, Phone, FileText, Loader2, Crosshair, ShieldCheck } = LucideIcons as any;
 
-  useEffect(() => {
-    if (location) {
-      map.flyTo(location, 16, { duration: 1.5 });
-    }
-  }, [location, map]);
+// Component แผนที่ต้องโหลดแบบ lazy load
+const MapPicker = lazy(() => import("./components/MapPicker") as any); 
 
-  useMapEvents({
-    click(e) {
-      setLocation({ lat: e.latlng.lat, lng: e.latlng.lng });
-    },
-  });
-
-  return location ? <Marker position={location} icon={iconDefault} /> : null;
-}
-
-// --- หน้าเว็บหลัก ---
 export default function App() {
   const [loading, setLoading] = useState(false);
   const [location, setLocation] = useState({ lat: 13.7563, lng: 100.5018 });
@@ -100,8 +76,8 @@ export default function App() {
         {/* Header */}
         <div className="bg-slate-800 p-6 text-white text-center relative">
           
-          {/* 👇 แก้ตรงนี้ครับ: ปุ่มเจ้าหน้าที่ชัดเจนขึ้น 👇 */}
-          <Link to="/dashboard" className="absolute top-4 right-4 flex items-center gap-1.5 bg-white/10 hover:bg-white/20 text-white px-3 py-1.5 rounded-full text-[10px] font-bold transition-all backdrop-blur-sm border border-white/10 group">
+          {/* ปุ่มเจ้าหน้าที่ */}
+          <Link to="/dashboard" className="absolute top-4 right-4 flex items-center gap-1.5 bg-white/10 hover:bg-white/20 text-white px-3 py-1.5 rounded-full text-[10px] font-bold transition-all backdrop-blur-sm border border-white/10 group" title="ไปหน้า Dashboard เจ้าหน้าที่">
             <ShieldCheck size={14} className="text-green-400" />
             สำหรับเจ้าหน้าที่
           </Link>
@@ -126,10 +102,10 @@ export default function App() {
              </div>
              
              <div className="h-56 rounded-xl overflow-hidden border-2 border-slate-200 shadow-inner relative z-0">
-               <MapContainer center={[13.7563, 100.5018]} zoom={13} style={{ height: "100%", width: "100%" }}>
-                 <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" attribution='&copy; OpenStreetMap' />
-                 <LocationMarker location={location} setLocation={setLocation} />
-               </MapContainer>
+               {/* ใช้ Suspense ครอบ MapPicker */}
+               <Suspense fallback={<div className="h-full flex items-center justify-center bg-gray-100 text-sm">กำลังโหลดแผนที่...</div>}>
+                 <MapPicker location={location} setLocation={setLocation} />
+               </Suspense>
              </div>
              <div className="text-center"><span className="text-[10px] bg-slate-100 px-2 py-1 rounded text-slate-500">{location.lat.toFixed(5)}, {location.lng.toFixed(5)}</span></div>
           </div>
