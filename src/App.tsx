@@ -6,7 +6,6 @@ import { MapContainer, TileLayer, Marker, useMap, useMapEvents } from "react-lea
 import "leaflet/dist/leaflet.css";
 import L from "leaflet";
 import { Camera, MapPin, Send, AlertTriangle, User, Phone, FileText, Loader2, Crosshair, LayoutDashboard, ShieldCheck } from "lucide-react";
-
 // --- แก้ไอคอนหมุด ---
 const iconDefault = new L.Icon({
   iconUrl: "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon.png",
