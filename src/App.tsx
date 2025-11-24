@@ -1,15 +1,16 @@
-import { useState, Suspense, lazy } from "react"; // 👈 FIX: ใช้ lazy/Suspense แทน dynamic
+import { useState } from "react";
 import { Link } from "react-router-dom";
 import { db } from "./firebase";
 import { collection, addDoc } from "firebase/firestore";
-import "leaflet/dist/leaflet.css"; // ต้อง Import CSS ตรงนี้
+import "leaflet/dist/leaflet.css";
 import * as LucideIcons from "lucide-react"; 
 
-// ดึงไอคอนที่ใช้ใน App.tsx ออกมา (เพื่อแก้ Build Error)
+// ดึงไอคอนที่ใช้ใน App.tsx ออกมา
 const { Camera, MapPin, Send, AlertTriangle, User, Phone, FileText, Loader2, Crosshair, ShieldCheck } = LucideIcons as any;
 
-// Component แผนที่ต้องโหลดแบบ lazy load
-const MapPicker = lazy(() => import("./components/MapPicker") as any); 
+// 🟢 FIX: เปลี่ยนกลับมาใช้ Dynamic Import แบบ Client-Side Render ที่เสถียรสุดสำหรับ Vite
+import MapPicker from "./components/MapPicker";
+
 
 export default function App() {
   const [loading, setLoading] = useState(false);
@@ -102,10 +103,8 @@ export default function App() {
              </div>
              
              <div className="h-56 rounded-xl overflow-hidden border-2 border-slate-200 shadow-inner relative z-0">
-               {/* ใช้ Suspense ครอบ MapPicker */}
-               <Suspense fallback={<div className="h-full flex items-center justify-center bg-gray-100 text-sm">กำลังโหลดแผนที่...</div>}>
-                 <MapPicker location={location} setLocation={setLocation} />
-               </Suspense>
+               {/* 🟢 FIX: เรียก MapPicker โดยตรง */}
+               <MapPicker location={location} setLocation={setLocation} />
              </div>
              <div className="text-center"><span className="text-[10px] bg-slate-100 px-2 py-1 rounded text-slate-500">{location.lat.toFixed(5)}, {location.lng.toFixed(5)}</span></div>
           </div>

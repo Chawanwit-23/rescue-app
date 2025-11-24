@@ -4,12 +4,12 @@ import { collection, onSnapshot, query, doc, updateDoc } from "firebase/firestor
 import { MapContainer, TileLayer, Marker, Popup, useMap } from "react-leaflet";
 import "leaflet/dist/leaflet.css";
 import L from "leaflet";
-import * as LucideIcons from "lucide-react"; // 👈 FIX: Import ทั้งหมดเพื่อแก้ TS6133
+import * as LucideIcons from "lucide-react"; // FIX: Import ทั้งหมดเพื่อแก้ TS6133
 
 // ดึงไอคอนที่ใช้ใน Dashboard.tsx ออกมา
 const { AlertTriangle, Phone, Clock, RefreshCw, CheckCircle, Navigation, ArrowRightCircle, Activity, Users } = LucideIcons as any;
 
-// --- Icons ---
+// --- Icons (หมุดสี) ---
 const createIcon = (url: string) => new L.Icon({
   iconUrl: url, shadowUrl: "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png",
   iconSize: [25, 41], iconAnchor: [12, 41], popupAnchor: [1, -34],
@@ -19,13 +19,14 @@ const orangeIcon = createIcon("https://raw.githubusercontent.com/pointhi/leaflet
 const greenIcon = createIcon("https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-green.png");
 const greyIcon = createIcon("https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-grey.png");
 
+// Component บังคับแผนที่ให้บินไปหาจุด
 function MapFlyTo({ location }: { location: [number, number] }) {
   const map = useMap();
   useEffect(() => { if (location) map.flyTo(location, 15, { duration: 1.5 }); }, [location, map]);
   return null;
 }
 
-// Component การ์ดตัวเลขเล็กๆ
+// Component การ์ดตัวเลขเล็กๆ (Stats Card)
 function StatCard({ label, count, color, icon }: any) {
   return (
     <div className="bg-white/10 rounded-lg p-2 flex items-center justify-between border border-white/10">
@@ -51,12 +52,15 @@ export default function Dashboard() {
   };
 
   useEffect(() => {
+    // Real-time listener: ดึงข้อมูลและจัดเรียง
     const q = query(collection(db, "requests"));
     const unsub = onSnapshot(q, (snapshot) => {
       const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
       const sorted = data.sort((a: any, b: any) => {
+        // เรียง Completed ลงล่างสุด
         if (a.status === "completed" && b.status !== "completed") return 1;
         if (a.status !== "completed" && b.status === "completed") return -1;
+        // เรียงตาม Risk Score (มากไปน้อย)
         return (b.ai_analysis?.risk_score || 0) - (a.ai_analysis?.risk_score || 0);
       });
       setRequests(sorted);
@@ -64,11 +68,13 @@ export default function Dashboard() {
     return () => unsub();
   }, []);
 
+  // ฟังก์ชันอัปเดตสถานะใน Firebase
   const updateStatus = async (id: string, newStatus: string, e: any) => {
     e.stopPropagation();
     try { await updateDoc(doc(db, "requests", id), { status: newStatus }); } catch (err) { console.error(err); }
   };
 
+  // ฟังก์ชันเปิด Google Maps
   const openGoogleMaps = (lat: number, lng: number, e: any) => {
     e.stopPropagation();
     window.open(`https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}`, '_blank');
@@ -82,7 +88,7 @@ export default function Dashboard() {
   return (
     <div className="flex h-screen bg-gray-100 overflow-hidden font-sans">
       
-      {/* Sidebar */}
+      {/* Sidebar (รายการแจ้งเหตุ) */}
       <div className="w-1/3 min-w-[400px] bg-white shadow-2xl z-20 flex flex-col border-r border-gray-200">
         
         {/* Header + Stats Panel */}
@@ -174,7 +180,7 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {/* Map */}
+      {/* Map Area */}
       <div className="flex-1 relative z-0">
         <MapContainer center={[13.7563, 100.5018]} zoom={10} style={{ height: "100%", width: "100%" }}>
           <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" attribution='© OpenStreetMap' />
