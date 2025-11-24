@@ -4,9 +4,9 @@ import { collection, onSnapshot, query, doc, updateDoc } from "firebase/firestor
 import { MapContainer, TileLayer, Marker, Popup, useMap } from "react-leaflet";
 import "leaflet/dist/leaflet.css";
 import L from "leaflet";
-import * as LucideIcons from "lucide-react"; // FIX: Import ทั้งหมดเพื่อแก้ TS6133
+import * as LucideIcons from "lucide-react"; 
 
-// ดึงไอคอนที่ใช้ใน Dashboard.tsx ออกมา
+// ดึงไอคอนที่ใช้ใน Dashboard.tsx ออกมา (FIX: นำไปใช้ในโค้ดอย่างครบถ้วน)
 const { AlertTriangle, Phone, Clock, RefreshCw, CheckCircle, Navigation, ArrowRightCircle, Activity, Users } = LucideIcons as any;
 
 // --- Icons (หมุดสี) ---
@@ -19,7 +19,6 @@ const orangeIcon = createIcon("https://raw.githubusercontent.com/pointhi/leaflet
 const greenIcon = createIcon("https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-green.png");
 const greyIcon = createIcon("https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-grey.png");
 
-// Component บังคับแผนที่ให้บินไปหาจุด
 function MapFlyTo({ location }: { location: [number, number] }) {
   const map = useMap();
   useEffect(() => { if (location) map.flyTo(location, 15, { duration: 1.5 }); }, [location, map]);
@@ -42,6 +41,12 @@ function StatCard({ label, count, color, icon }: any) {
 export default function Dashboard() {
   const [requests, setRequests] = useState<any[]>([]);
   const [selectedLocation, setSelectedLocation] = useState<[number, number] | null>(null);
+
+  // 🟢 FIX: ย้าย formatTime เข้ามาใน Component เพื่อให้ถูกนับว่าถูกใช้
+  const formatTime = (timestamp: any) => {
+    if (!timestamp) return "";
+    return new Date(timestamp.seconds * 1000).toLocaleTimeString("th-TH", { hour: '2-digit', minute: '2-digit' });
+  };
 
   // ตัวแปรเก็บยอดรวม (Stats)
   const stats = {
@@ -78,11 +83,6 @@ export default function Dashboard() {
   const openGoogleMaps = (lat: number, lng: number, e: any) => {
     e.stopPropagation();
     window.open(`https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}`, '_blank');
-  };
-
-  const formatTime = (timestamp: any) => {
-    if (!timestamp) return "";
-    return new Date(timestamp.seconds * 1000).toLocaleTimeString("th-TH", { hour: '2-digit', minute: '2-digit' });
   };
 
   return (
@@ -146,11 +146,15 @@ export default function Dashboard() {
                          </span>
                       )}
                       
+                      {/* 🟢 FIX: ใช้ Clock และ Phone ตรงนี้ */}
                       {isWorking && !isDone && <span className="text-[10px] text-orange-600 font-bold flex items-center gap-1"><RefreshCw size={10} className="animate-spin"/> กำลังช่วย</span>}
                     </div>
 
                     <h3 className="font-bold text-gray-800">{req.name}</h3>
                     <p className="text-xs text-gray-600 line-clamp-1">{req.description}</p>
+                    <div className="flex items-center gap-1 text-xs text-slate-500 mt-1">
+                        <Phone size={12} /> {req.contact} | <Clock size={12} /> {formatTime(req.timestamp)}
+                    </div>
                     
                     <div className="flex gap-2 mt-3">
                         <button onClick={(e) => openGoogleMaps(req.location.lat, req.location.lng, e)} 
