@@ -1,7 +1,7 @@
-// src/Dashboard.tsx (Full Version: Improved Stats Layout)
+// src/Dashboard.tsx (Full Version: Black Case = Urgent Recovery -> Delete)
 import { useState, useEffect, useMemo, useRef } from "react";
 import { db } from "./firebase";
-import { collection, onSnapshot, query, doc, updateDoc } from "firebase/firestore";
+import { collection, onSnapshot, query, doc, updateDoc, deleteDoc } from "firebase/firestore"; // 🟢 เพิ่ม deleteDoc
 import { MapContainer, TileLayer, Marker, Popup, useMap } from "react-leaflet";
 import "leaflet/dist/leaflet.css";
 import L from "leaflet";
@@ -12,7 +12,7 @@ import { Link } from "react-router-dom";
 const { 
   AlertTriangle, CheckCircle2, Navigation, ArrowRightCircle, Activity, 
   Users, MapPin, Search, Siren, Phone, Clock, FileText, 
-  UserCheck, X, Skull 
+  UserCheck, X, Skull, Trash2 // 🟢 เพิ่ม Trash2
 } = LucideIcons as any;
 
 // --- 2. Interface ---
@@ -46,11 +46,12 @@ interface RequestData {
 // --- 3. Marker Logic ---
 const createLabelIcon = (name: string, score: number, status: string, isBlackCase?: boolean) => {
   let borderColor = "#10b981"; let textColor = "#047857"; let bgColor = "white";
-  let opacity = "1";
+  let opacity = "1"; 
 
   if (isBlackCase) { 
-    borderColor = "#1f2937"; textColor = "#1f2937"; bgColor = "#e5e7eb"; 
-    opacity = "0.7"; 
+    // ⚫ เคสดำ (ต้องเด่น เพื่อรอเก็บกู้)
+    borderColor = "#000000"; textColor = "#ffffff"; bgColor = "#1f2937"; 
+    opacity = "1"; // ไม่จาง! ต้องชัด
   } 
   else if (status === 'completed') { 
     borderColor = "#64748b"; textColor = "#64748b"; bgColor = "#f1f5f9"; 
@@ -64,7 +65,8 @@ const createLabelIcon = (name: string, score: number, status: string, isBlackCas
     <div style="
       opacity: ${opacity};
       background-color:${bgColor}; border:2px solid ${borderColor}; border-radius:12px; padding:4px 8px; white-space:nowrap; font-family:'Kanit',sans-serif; font-weight:700; font-size:12px; color:${textColor}; box-shadow:0 4px 10px rgba(0,0,0,0.15); text-align:center; position:relative; display:inline-block; transform:translate(-50%,-50%); min-width:80px;
-      ${status === 'completed' ? 'filter: grayscale(100%);' : ''}
+      ${status === 'completed' && !isBlackCase ? 'filter: grayscale(100%);' : ''}
+      ${isBlackCase ? 'border-width: 3px; animation: pulse-black 2s infinite;' : ''} /* เคสดำมี Animation */
     ">
       <div style="display:flex; align-items:center; justify-content:center; gap:4px;">
         <span>${name}</span>
@@ -72,6 +74,13 @@ const createLabelIcon = (name: string, score: number, status: string, isBlackCas
       </div>
       <div style="position:absolute; bottom:-7px; left:50%; transform:translateX(-50%); width:0; height:0; border-left:6px solid transparent; border-right:6px solid transparent; border-top:6px solid ${borderColor};"></div>
     </div>
+    <style>
+      @keyframes pulse-black {
+        0% { box-shadow: 0 0 0 0 rgba(0, 0, 0, 0.7); }
+        70% { box-shadow: 0 0 0 10px rgba(0, 0, 0, 0); }
+        100% { box-shadow: 0 0 0 0 rgba(0, 0, 0, 0); }
+      }
+    </style>
   `;
   return L.divIcon({ className: "custom-div-icon", html: html, iconSize: [120, 50], iconAnchor: [60, 50] });
 };
@@ -83,14 +92,9 @@ function MapFlyTo({ location }: { location: [number, number] }) {
   return null;
 }
 
-// 🟢 Updated StatCard: ปรับดีไซน์ให้อ่านง่ายขึ้น
 function StatCard({ label, count, color, icon }: any) {
   return (
-    <div className={`
-        relative overflow-hidden rounded-2xl p-3 border border-white/20 ${color} shadow-lg group 
-        min-h-[80px] flex flex-col justify-center
-        min-w-[100px] md:min-w-0 flex-shrink-0 /* มือถือ: ห้ามบีบเล็กกว่า 100px */
-    `}>
+    <div className={`relative overflow-hidden rounded-2xl p-3 border border-white/20 ${color} shadow-lg group min-h-[80px] flex flex-col justify-center min-w-[100px] md:min-w-0 flex-shrink-0`}>
       <div className="absolute -right-2 -top-2 p-3 opacity-20 scale-150 group-hover:scale-[1.7] transition-transform duration-500">{icon}</div>
       <div className="relative z-10 flex flex-col items-start">
         <span className="text-[10px] uppercase tracking-wider text-white/90 font-bold opacity-80 whitespace-nowrap">{label}</span>
@@ -142,6 +146,11 @@ export default function Dashboard() {
     const matchesSearch = req.name?.toLowerCase().includes(searchLower) || req.description?.toLowerCase().includes(searchLower) || req.address?.details?.toLowerCase().includes(searchLower);
     return matchesSearch && (selectedProvince === "ทั้งหมด" || req.address?.province === selectedProvince) && (selectedDistrict === "ทั้งหมด" || req.address?.district === selectedDistrict) && (selectedSubDistrict === "ทั้งหมด" || req.address?.subdistrict === selectedSubDistrict);
   }).sort((a, b) => {
+    // 1. เอาเคสดำขึ้นก่อนเพื่อน (Urgent)
+    if (a.isBlackCase && !b.isBlackCase) return -1;
+    if (!a.isBlackCase && b.isBlackCase) return 1;
+    
+    // 2. เรียงตามสถานะ
     if (a.status === "completed" && b.status !== "completed") return 1;
     if (a.status !== "completed" && b.status === "completed") return -1;
     return (b.ai_analysis?.risk_score || 0) - (a.ai_analysis?.risk_score || 0);
@@ -151,9 +160,8 @@ export default function Dashboard() {
     total: filteredRequests.length,
     waiting: filteredRequests.filter(r => r.status === 'waiting').length,
     critical: filteredRequests.filter(r => r.ai_analysis?.risk_score! >= 8 && r.status !== 'completed').length,
-    working: filteredRequests.filter(r => r.status === 'inprogress').length,
-    completed: filteredRequests.filter(r => r.status === 'completed' && !r.isBlackCase).length,
-    black: filteredRequests.filter(r => r.isBlackCase).length,
+    working: filteredRequests.filter(r => r.status === 'inprogress' && !r.isBlackCase).length,
+    black: filteredRequests.filter(r => r.isBlackCase).length, // ⚫ เคสรอเก็บกู้
   };
 
   // --- Actions ---
@@ -179,20 +187,32 @@ export default function Dashboard() {
     } catch (err) { console.error(err); }
   };
 
+  // 🟢 ปิดงานเคสปกติ (Mark as Completed)
   const closeCase = async (id: string, e?: any) => {
     e?.stopPropagation();
-    if(!confirm("✅ ยืนยันการปิดงาน (ช่วยเหลือสำเร็จ)?")) return;
+    if(!confirm("✅ ยืนยันช่วยเหลือสำเร็จ (ปิดงาน)?")) return;
     try { await updateDoc(doc(db, "requests", id), { status: 'completed', isBlackCase: false }); } catch (err) { console.error(err); }
   };
 
-  const closeBlackCase = async (id: string, e?: any) => {
+  // ⚫ แจ้งว่าเป็นเคสดำ (ยังไม่ลบ แต่เปลี่ยนสถานะให้ทีมเก็บกู้เห็น)
+  const markAsBlackCase = async (id: string, e?: any) => {
     e?.stopPropagation();
-    if(!confirm("💀 ยืนยันแจ้งเหตุ 'เคสดำ' (พบผู้เสียชีวิต)?\n\nข้อมูลนี้จะถูกบันทึกเข้าระบบทันที")) return;
+    if(!confirm("💀 ยืนยันพบร่างผู้เสียชีวิต?\n\n(สถานะจะเปลี่ยนเป็น 'รอเก็บกู้' ทันที)")) return;
     try { 
         await updateDoc(doc(db, "requests", id), { 
-            status: 'completed', 
-            isBlackCase: true 
+            isBlackCase: true,
+            // status ยังคงเป็น inprogress หรือเปลี่ยนเป็น waiting ก็ได้ แต่ในที่นี้ใช้ flag isBlackCase คุม
         }); 
+    } catch (err) { console.error(err); }
+  };
+
+  // 🗑️ เก็บกู้เสร็จสิ้น (ลบข้อมูลออกจาก Map)
+  const finishBlackCase = async (id: string, e?: any) => {
+    e?.stopPropagation();
+    if(!confirm("⚰️ ยืนยันการเก็บกู้ร่างเสร็จสิ้น?\n\n(ข้อมูลเคสนี้จะถูกลบออกจากหน้าจอทันที)")) return;
+    try { 
+        // ลบเอกสารออกจาก Database เลย (ตามโจทย์: "เคสนี้ก็จะถูกลบไป")
+        await deleteDoc(doc(db, "requests", id)); 
     } catch (err) { console.error(err); }
   };
 
@@ -214,12 +234,11 @@ export default function Dashboard() {
         .leaflet-popup-content { margin: 0 !important; width: 280px !important; }
         .leaflet-popup-tip { background: white; }
         .leaflet-container a.leaflet-popup-close-button { color: #aaa; font-size: 18px; top: 8px; right: 8px; background: rgba(0,0,0,0.1); border-radius: 50%; width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; text-decoration: none; z-index: 20; }
-        /* Hide Scrollbar for Stats */
         .no-scrollbar::-webkit-scrollbar { display: none; }
         .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
       `}</style>
 
-      {/* ================= MODAL (Officer Form) ================= */}
+      {/* ================= MODAL ================= */}
       {showAcceptModal && (
         <div className="fixed inset-0 z-[2000] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-200">
             <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden scale-100 animate-in zoom-in-95 duration-200">
@@ -261,7 +280,6 @@ export default function Dashboard() {
               <Link to="/" className="text-[10px] md:text-xs bg-white/10 hover:bg-white/20 backdrop-blur-md px-3 py-1.5 rounded-full text-white border border-white/10 transition flex items-center gap-1 font-medium"><ArrowRightCircle size={14} /> <span className="hidden md:inline">แจ้งเหตุ</span></Link>
             </div>
 
-            {/* 🟢 NEW: Scrollable Stats Layout */}
             <div className={`
                 flex flex-row overflow-x-auto gap-3 pb-2 -mx-1 px-1 no-scrollbar
                 md:grid md:grid-cols-3 lg:grid-cols-2 xl:grid-cols-3 md:overflow-visible md:pb-0 md:gap-2
@@ -272,8 +290,8 @@ export default function Dashboard() {
               <StatCard label="รอช่วย" count={stats.waiting} color="bg-gradient-to-br from-blue-500 to-blue-600" icon={<Users />} />
               <StatCard label="วิกฤต" count={stats.critical} color="bg-gradient-to-br from-red-500 to-red-600" icon={<AlertTriangle />} />
               <StatCard label="กำลัง" count={stats.working} color="bg-gradient-to-br from-orange-400 to-orange-500" icon={<Navigation />} />
-              <StatCard label="ปกติ" count={stats.completed} color="bg-gradient-to-br from-emerald-500 to-emerald-600" icon={<CheckCircle2 />} />
-              <StatCard label="เสียชีวิต" count={stats.black} color="bg-gradient-to-br from-slate-600 to-slate-700" icon={<Skull />} />
+              {/* ⚫ Card พิเศษ: รอเก็บกู้ */}
+              <StatCard label="รอเก็บกู้" count={stats.black} color="bg-gradient-to-br from-slate-700 to-black border-red-900/50" icon={<Skull className="text-red-500" />} />
             </div>
         </div>
         
@@ -292,18 +310,22 @@ export default function Dashboard() {
                 const isDone = req.status === 'completed';
                 const score = req.ai_analysis?.risk_score || 0;
                 
-                let cardBorder = isDone ? (req.isBlackCase ? "border-l-slate-600" : "border-l-slate-300") : (score >= 8 ? "border-l-red-500" : (score >= 5 ? "border-l-orange-400" : "border-l-emerald-500"));
-                let badgeStyle = isDone 
-                    ? (req.isBlackCase ? "bg-slate-700 text-white" : "bg-slate-100 text-slate-500") 
-                    : (score >= 8 ? "bg-red-50 text-red-600" : (score >= 5 ? "bg-orange-50 text-orange-600" : "bg-emerald-50 text-emerald-600"));
+                // ⚫ Styling เคสดำ: กรอบดำ พื้นหลังเทาเข้ม
+                let cardBorder = req.isBlackCase 
+                    ? "border-l-black border-l-[6px] bg-slate-100" 
+                    : (isDone ? "border-l-slate-300" : (score >= 8 ? "border-l-red-500" : (score >= 5 ? "border-l-orange-400" : "border-l-emerald-500")));
+                
+                let badgeStyle = req.isBlackCase 
+                    ? "bg-black text-white shadow-md shadow-black/30" 
+                    : (isDone ? "bg-slate-100 text-slate-500" : (score >= 8 ? "bg-red-50 text-red-600" : (score >= 5 ? "bg-orange-50 text-orange-600" : "bg-emerald-50 text-emerald-600")));
                 
                 return (
                   <div key={req.id} onClick={() => req.location && setSelectedLocation([req.location.lat, req.location.lng])} className={`bg-white rounded-xl p-3 shadow-sm hover:shadow-lg hover:-translate-y-0.5 border border-slate-100 ${cardBorder} border-l-[4px] transition-all cursor-pointer group`}>
                     <div className="flex justify-between items-start mb-2">
                       <div className="flex items-center gap-2">
                           <span className={`text-[10px] font-bold px-2 py-0.5 rounded-md uppercase tracking-wide flex items-center gap-1 ${badgeStyle}`}>
-                            {req.isBlackCase ? <Skull size={10}/> : (isDone ? <CheckCircle2 size={10}/> : <Activity size={10}/>)} 
-                            {req.isBlackCase ? "BLACK CASE" : (isDone ? "DONE" : `RISK ${score}`)}
+                            {req.isBlackCase ? <Skull size={10} className="text-red-500"/> : (isDone ? <CheckCircle2 size={10}/> : <Activity size={10}/>)} 
+                            {req.isBlackCase ? "รอเก็บกู้ (เสียชีวิต)" : (isDone ? "DONE" : `RISK ${score}`)}
                           </span>
                       </div>
                       <span className="text-[10px] text-slate-400 flex items-center gap-1 bg-slate-50 px-2 py-0.5 rounded-full font-medium"><Clock size={10}/> {new Date(req.timestamp?.seconds * 1000).toLocaleTimeString("th-TH",{hour:'2-digit',minute:'2-digit'})}</span>
@@ -326,13 +348,21 @@ export default function Dashboard() {
 
                           <div className="flex gap-2 mt-auto">
                              <button onClick={(e) => openMaps(req.location!.lat, req.location!.lng, e)} className="flex-1 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-600 text-[10px] font-bold transition flex items-center justify-center gap-1"><Navigation size={12}/> นำทาง</button>
+                             
                              {req.status === 'waiting' && (
                                 <button onClick={(e) => initiateAccept(req.id, e)} className="flex-1 py-1.5 text-white rounded-lg text-[10px] font-bold flex items-center justify-center gap-1 shadow-sm bg-orange-500 hover:bg-orange-600"><ArrowRightCircle size={12}/> รับงาน</button>
                              )}
                              {req.status === 'inprogress' && (
                                 <>
-                                    <button onClick={(e) => closeCase(req.id, e)} className="flex-1 py-1.5 rounded-lg text-white text-[10px] font-bold flex items-center justify-center gap-1 shadow-sm bg-emerald-600 hover:bg-emerald-700"><CheckCircle2 size={12}/> ปิดงาน</button>
-                                    <button onClick={(e) => closeBlackCase(req.id, e)} className="px-3 py-1.5 rounded-lg text-white text-[10px] font-bold flex items-center justify-center gap-1 shadow-sm bg-slate-700 hover:bg-black"><Skull size={12}/> เคสดำ</button>
+                                    {/* ⚫ ปุ่มปิดเคสดำ (เก็บกู้เสร็จ -> ลบ) */}
+                                    {req.isBlackCase ? (
+                                        <button onClick={(e) => finishBlackCase(req.id, e)} className="flex-1 py-1.5 text-white rounded-lg text-[10px] font-bold flex items-center justify-center gap-1 shadow-sm bg-black hover:bg-gray-800"><Trash2 size={12}/> ยืนยันเก็บกู้</button>
+                                    ) : (
+                                        <>
+                                            <button onClick={(e) => closeCase(req.id, e)} className="flex-1 py-1.5 text-white rounded-lg text-[10px] font-bold flex items-center justify-center gap-1 shadow-sm bg-emerald-600 hover:bg-emerald-700"><CheckCircle2 size={12}/> ปิดงาน</button>
+                                            <button onClick={(e) => markAsBlackCase(req.id, e)} className="px-3 py-1.5 rounded-lg text-white text-[10px] font-bold flex items-center justify-center gap-1 shadow-sm bg-slate-700 hover:bg-black"><Skull size={12}/> เคสดำ</button>
+                                        </>
+                                    )}
                                 </>
                              )}
                           </div>
@@ -359,15 +389,15 @@ export default function Dashboard() {
                   key={req.id} 
                   position={req.location} 
                   icon={createLabelIcon(req.name, score, req.status, req.isBlackCase)}
-                  zIndexOffset={req.status === 'completed' ? -1000 : 100}
+                  zIndexOffset={req.status === 'completed' ? -1000 : (req.isBlackCase ? 2000 : 100)} // ⚫ เคสดำอยู่หน้าสุด
                >
                   <Popup>
                      <div className="flex flex-col font-sans">
                         {req.imageUrl ? (
                            <div className="h-24 w-full bg-cover bg-center rounded-t-lg relative" style={{backgroundImage: `url(${req.imageUrl})`}}>
                               <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent"></div>
-                              <span className={`absolute bottom-2 left-2 text-[10px] font-bold px-2 py-0.5 rounded text-white ${req.isBlackCase ? 'bg-slate-800' : (req.status==='waiting'?'bg-red-600':req.status==='inprogress'?'bg-orange-500':'bg-emerald-600')}`}>
-                                 {req.isBlackCase ? 'BLACK CASE' : (req.status==='waiting' ? `RISK ${score}` : req.status==='inprogress' ? 'WORKING' : 'DONE')}
+                              <span className={`absolute bottom-2 left-2 text-[10px] font-bold px-2 py-0.5 rounded text-white ${req.isBlackCase ? 'bg-black' : (req.status==='waiting'?'bg-red-600':req.status==='inprogress'?'bg-orange-500':'bg-emerald-600')}`}>
+                                 {req.isBlackCase ? 'URGENT: RECOVERY' : (req.status==='waiting' ? `RISK ${score}` : req.status==='inprogress' ? 'WORKING' : 'DONE')}
                               </span>
                            </div>
                         ) : (<div className="h-10 w-full bg-slate-100 flex items-center justify-center border-b border-slate-200"><span className="text-xs text-slate-400 font-medium">ไม่มีรูปภาพ</span></div>)}
@@ -383,9 +413,12 @@ export default function Dashboard() {
                               <div className="flex gap-2">
                                 <button onClick={(e) => openMaps(req.location!.lat, req.location!.lng, e)} className="flex-1 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-lg text-xs font-bold transition flex items-center justify-center gap-1"><Navigation size={12}/> ไป</button>
                                 {req.status === 'waiting' && <button onClick={(e) => initiateAccept(req.id, e)} className="flex-1 py-1.5 text-white rounded-lg text-xs font-bold flex items-center justify-center gap-1 shadow-sm bg-orange-500 hover:bg-orange-600">รับงาน</button>}
-                                {req.status === 'inprogress' && <button onClick={(e) => closeCase(req.id, e)} className="flex-1 py-1.5 text-white rounded-lg text-xs font-bold flex items-center justify-center gap-1 shadow-sm bg-emerald-600 hover:bg-emerald-700">ปิดงาน</button>}
+                                {req.status === 'inprogress' && !req.isBlackCase && <button onClick={(e) => closeCase(req.id, e)} className="flex-1 py-1.5 text-white rounded-lg text-xs font-bold flex items-center justify-center gap-1 shadow-sm bg-emerald-600 hover:bg-emerald-700">ปิดงาน</button>}
+                                {req.isBlackCase && <button onClick={(e) => finishBlackCase(req.id, e)} className="flex-1 py-1.5 text-white rounded-lg text-xs font-bold flex items-center justify-center gap-1 shadow-sm bg-black hover:bg-gray-800"><Trash2 size={12}/> ยืนยันเก็บกู้</button>}
                               </div>
-                              {req.status === 'inprogress' && <button onClick={(e) => closeBlackCase(req.id, e)} className="w-full py-1.5 text-white rounded-lg text-xs font-bold flex items-center justify-center gap-1 shadow-sm bg-slate-700 hover:bg-black"><Skull size={12}/> แจ้งเคสดำ (เสียชีวิต)</button>}
+                              {req.status === 'inprogress' && !req.isBlackCase && (
+                                <button onClick={(e) => markAsBlackCase(req.id, e)} className="w-full py-1.5 text-white rounded-lg text-xs font-bold flex items-center justify-center gap-1 shadow-sm bg-slate-700 hover:bg-black"><Skull size={12}/> แจ้งเคสดำ (เสียชีวิต)</button>
+                              )}
                            </div>
                         </div>
                      </div>
