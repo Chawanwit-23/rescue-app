@@ -1,3 +1,4 @@
+// src/App.tsx (User Reporting Form + Footer)
 import { useState, Suspense, lazy } from "react";
 import { Link } from "react-router-dom";
 import { db } from "./firebase";
@@ -5,13 +6,16 @@ import { collection, addDoc } from "firebase/firestore";
 import "leaflet/dist/leaflet.css";
 import * as LucideIcons from "lucide-react"; 
 
-// ดึงไอคอนที่ใช้ใน App.tsx ออกมา
-const { MapPin, Camera, Send, AlertTriangle, User, Phone, FileText, Loader2, Crosshair, ShieldCheck, Home, Users, Droplets, Info } = LucideIcons as any;
+// ดึงไอคอนที่ใช้
+const { 
+  MapPin, Camera, Send, AlertTriangle, User, Phone, FileText, 
+  Loader2, Crosshair, ShieldCheck, Home, Users, Droplets, Info, Heart 
+} = LucideIcons as any;
 
 // Load Map แบบ Lazy
 const MapPicker = lazy(() => import("./components/MapPicker") as any); 
 
-// ฟังก์ชันดึงที่อยู่ละเอียด
+// ฟังก์ชันดึงที่อยู่ละเอียด (Reverse Geocoding)
 const getAddressFromCoords = async (lat: number, lng: number) => {
   try {
     const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=18&addressdetails=1&accept-language=th`);
@@ -119,7 +123,7 @@ export default function App() {
         status: "waiting",
         timestamp: new Date()
       });
-      alert("✅ แจ้งเหตุสำเร็จ!");
+      alert("✅ แจ้งเหตุสำเร็จ! เจ้าหน้าที่กำลังตรวจสอบ");
       window.location.reload();
     } catch (err: any) {
       alert("Error: " + err.message);
@@ -128,22 +132,26 @@ export default function App() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-200 p-4 flex justify-center items-center font-sans">
-      <div className="w-full max-w-lg bg-white rounded-3xl shadow-2xl overflow-hidden border border-slate-100 relative">
+    <div className="min-h-screen bg-gradient-to-br from-slate-100 to-slate-300 flex flex-col items-center py-10 px-4 font-sans overflow-y-auto">
+      
+      {/* Main Card */}
+      <div className="w-full max-w-lg bg-white rounded-3xl shadow-2xl overflow-hidden border border-slate-100 relative mb-6">
         
+        {/* Header */}
         <div className="bg-slate-800 p-5 text-white text-center relative">
           <Link to="/dashboard" className="absolute top-4 right-4 flex items-center gap-1.5 bg-white/10 hover:bg-white/20 text-white px-3 py-1.5 rounded-full text-[10px] font-bold transition-all border border-white/10">
             <ShieldCheck size={14} className="text-green-400" /> จนท.
           </Link>
           <div className="flex justify-center items-center gap-2 mb-1 mt-2">
-             <AlertTriangle className="text-red-500 fill-current" size={28} />
+             <AlertTriangle className="text-red-500 fill-current animate-pulse" size={28} />
              <h1 className="text-2xl font-bold">แจ้งเหตุฉุกเฉิน</h1>
           </div>
-          <p className="text-slate-400 text-xs">ระบบ AI กู้ภัยอัจฉริยะ</p>
+          <p className="text-slate-400 text-xs">ระบบ AI กู้ภัยอัจฉริยะ (Flood Rescue AI)</p>
         </div>
 
         <form onSubmit={handleSubmit} className="p-6 space-y-4">
           
+          {/* 1. Map */}
           <div className="space-y-2">
              <div className="flex justify-between items-end">
                 <label className="font-bold text-slate-700 text-sm flex items-center gap-2">
@@ -165,6 +173,7 @@ export default function App() {
 
           <hr className="border-slate-100" />
 
+          {/* 2. Address */}
           <div className="space-y-3 bg-slate-50 p-3 rounded-xl border border-slate-200">
              <label className="font-bold text-slate-700 text-sm flex items-center gap-2">
                <Home size={16} className="text-orange-500" /> 2. รายละเอียดที่อยู่
@@ -189,6 +198,7 @@ export default function App() {
              </div>
           </div>
 
+          {/* 3. Details */}
           <div className="space-y-3 bg-blue-50 p-3 rounded-xl border border-blue-100">
              <label className="font-bold text-slate-700 text-sm flex items-center gap-2">
                <Info size={16} className="text-blue-500" /> 3. ข้อมูลสถานการณ์
@@ -221,6 +231,7 @@ export default function App() {
              </div>
           </div>
 
+          {/* 4. Contact Info */}
           <div className="grid grid-cols-2 gap-3">
             <div>
                <label className="text-xs font-bold text-slate-500 ml-1">ชื่อผู้แจ้ง</label>
@@ -238,14 +249,16 @@ export default function App() {
             </div>
           </div>
           
+          {/* 5. Description */}
           <div>
              <label className="text-xs font-bold text-slate-500 ml-1">รายละเอียดเพิ่มเติม</label>
              <div className="relative mt-1">
                 <FileText className="absolute left-3 top-3 text-slate-400 w-4 h-4" />
-                <textarea name="description" className="w-full pl-9 p-2.5 bg-white border border-slate-200 rounded-lg text-sm h-16 outline-none focus:ring-2 focus:ring-blue-500 resize-none" placeholder="เช่น ผู้ป่วยติดเตียง, ไม่มีไฟฟ้า..." />
+                <textarea name="description" className="w-full pl-9 p-2.5 bg-white border border-slate-200 rounded-lg text-sm h-16 outline-none focus:ring-2 focus:ring-blue-500 resize-none" placeholder="เช่น ผู้ป่วยติดเตียง, ไม่มีไฟฟ้า, ต้องการยา..." />
              </div>
           </div>
 
+          {/* 6. Photo */}
           <div className={`border-2 border-dashed rounded-xl p-4 text-center cursor-pointer relative group ${imageBase64 ? 'border-green-500 bg-green-50' : 'border-slate-300 hover:border-blue-400'}`}>
             <input type="file" onChange={handleImage} className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10" accept="image/*" />
             {imageBase64 ? (
@@ -264,6 +277,15 @@ export default function App() {
 
         </form>
       </div>
+
+      {/* 🟢 FOOTER (เพิ่มตรงนี้ครับ) */}
+      <footer className="text-center text-slate-500 text-[10px] font-medium opacity-80">
+         <p>&copy; {new Date().getFullYear()} Flood Rescue AI System</p>
+         <p className="flex items-center justify-center gap-1 mt-1">
+            Developed with <Heart size={10} className="text-red-400 fill-current" /> by <span className="text-slate-700 font-bold">Chawanwit</span>
+         </p>
+      </footer>
+
     </div>
   );
 }
