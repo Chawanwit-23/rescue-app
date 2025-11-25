@@ -1,3 +1,4 @@
+// ai-worker.mjs (ฉบับแก้ไข: รันบน Server ได้ + แก้ Status ปุ่มหาย)
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { initializeApp } from "firebase/app";
 import {
@@ -8,16 +9,14 @@ import {
   updateDoc,
 } from "firebase/firestore";
 import { getAuth, signInAnonymously } from "firebase/auth";
-import http from "http"; // เพิ่มตัวนี้
+import http from "http"; 
 
 // ==========================================
-// 🔴 ส่วนตั้งค่า (ใส่ Key ของคุณตรงนี้)
+// 🔴 ส่วนตั้งค่า (ใช้ process.env สำหรับ Server)
 // ==========================================
 
-// 1. ใส่ Gemini API Key (จาก Google AI Studio)
-const GEMINI_API_KEY = process.env.GEMINI_API_KEY; //
+const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 
-// 2. ใส่ Firebase Config (ก๊อปมาจากไฟล์ src/firebase.ts ได้เลย)
 const FIREBASE_CONFIG = {
   apiKey: process.env.FIREBASE_API_KEY,
   authDomain: "flood-rescue-ai.firebaseapp.com",
@@ -25,19 +24,18 @@ const FIREBASE_CONFIG = {
   storageBucket: "flood-rescue-ai.firebasestorage.app",
   messagingSenderId: "847062213330",
   appId: "1:847062213330:web:5c6af3bb8e5bf92c90830b",
-  measurementId: "G-4Z8DMG10ZM"
+  measurementId: "G-4Z8DMG10ZM",
 };
 
 // ==========================================
 
-// เริ่มต้นระบบ
 const app = initializeApp(FIREBASE_CONFIG);
 const db = getFirestore(app);
 const auth = getAuth(app);
 const genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
 
-// รายชื่อโมเดลที่จะลองสุ่ม (กันพลาด)
-const MODEL_CANDIDATES = ["gemini-flash-latest"];
+// ใช้ชื่อโมเดลที่เสถียรกว่าสำหรับ Server
+const MODEL_CANDIDATES = ["gemini-1.5-flash", "gemini-pro-vision"]; 
 
 console.log("🚀 กำลังเริ่มระบบ AI Worker...");
 
@@ -47,26 +45,9 @@ async function start() {
     await signInAnonymously(auth);
     console.log("🔑 Login Firebase สำเร็จ!");
 
-    // 2. หาโมเดลที่ใช้ได้
-    let activeModel = null;
-    console.log("🔍 กำลังหาโมเดล AI...");
-
-    for (const modelName of MODEL_CANDIDATES) {
-      try {
-        const model = genAI.getGenerativeModel({ model: modelName });
-        await model.generateContent("Test"); // ลองยิงทดสอบ
-        activeModel = model;
-        console.log(`✅ เจอแล้ว! จะใช้โมเดล: "${modelName}"`);
-        break;
-      } catch (e) {
-        // เงียบไว้ แล้วไปลองตัวถัดไป
-      }
-    }
-
-    if (!activeModel) {
-      console.error("❌ หาโมเดล AI ไม่เจอเลย! (เช็ค API Key หรือเครือข่าย)");
-      return;
-    }
+    // 2. เลือกโมเดล (ใช้ Flash เป็นหลักเพราะไวและถูก)
+    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+    console.log(`✅ พร้อมทำงานด้วยโมเดล: gemini-1.5-flash`);
 
     // 3. เริ่มเฝ้า Database
     console.log("👀 หุ่นยนต์พร้อมทำงาน! รอรับเคส...");
@@ -75,10 +56,12 @@ async function start() {
       snapshot.docChanges().forEach(async (change) => {
         if (change.type === "added") {
           const data = change.doc.data();
-          // ถ้าสถานะเป็น "waiting" แสดงว่าเพิ่งส่งมาใหม่ -> ให้ AI ทำงาน
-          if (data.status === "waiting") {
+          
+          // 🔴 LOGIC สำคัญที่แก้ให้:
+          // ตรวจสอบว่า Status เป็น waiting และ "ยังไม่เคยมีผลวิเคราะห์" (เพื่อกัน Loop)
+          if (data.status === "waiting" && !data.ai_analysis) {
             console.log(`\n🔔 พบเคสใหม่: ${data.name}`);
-            await analyzeCase(activeModel, change.doc.id, data);
+            await analyzeCase(model, change.doc.id, data);
           }
         }
       });
@@ -125,10 +108,11 @@ async function analyzeCase(model, docId, data) {
     const jsonString = responseText.replace(/```json|```/g, "").trim();
     const aiResult = JSON.parse(jsonString);
 
-    // อัปเดตกลับไปที่ Database
+    // 🔴 แก้ไขจุดนี้: อัปเดตแค่ผล AI แต่ "ไม่เปลี่ยน status" 
+    // เพื่อให้ status ยังเป็น "waiting" และปุ่ม "รับงาน" ยังแสดงบน Dashboard
     await updateDoc(doc(db, "requests", docId), {
-      ai_analysis: aiResult,
-      status: "analyzed",
+      ai_analysis: aiResult
+      // status: "analyzed"  <-- เอาบรรทัดนี้ออกครับ
     });
 
     console.log(
@@ -142,10 +126,12 @@ async function analyzeCase(model, docId, data) {
 // รันระบบ
 start();
 
+// Health Check Endpoint สำหรับ Server (เช่น Render/Heroku)
 const PORT = process.env.PORT || 3000;
 http
   .createServer((req, res) => {
-    res.write("AI Worker is Running! 🤖"); // เขียนข้อความบอกว่าฉันยังอยู่นะ
+    res.writeHead(200, { "Content-Type": "text/plain" });
+    res.write("AI Worker is Running! 🤖");
     res.end();
   })
   .listen(PORT, () => {
