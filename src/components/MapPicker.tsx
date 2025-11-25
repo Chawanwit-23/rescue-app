@@ -1,58 +1,77 @@
-// src/components/MapPicker.tsx (ฉบับแก้ไข)
-import { useEffect } from "react"; // 🟢 เพิ่ม import useEffect
-import { MapContainer, TileLayer, Marker, useMapEvents, useMap } from "react-leaflet";
+import { MapContainer, TileLayer, useMapEvents, useMap } from "react-leaflet";
 import "leaflet/dist/leaflet.css";
-import L from "leaflet";
+import * as LucideIcons from "lucide-react"; 
+import { useEffect, useState } from "react";
 
-// ... (ส่วน iconDefault เหมือนเดิม ไม่ต้องแก้) ...
-const iconDefault = new L.Icon({
-  iconUrl: "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon.png",
-  iconRetinaUrl: "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon-2x.png",
-  shadowUrl: "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png",
-  iconSize: [25, 41],
-  iconAnchor: [12, 41],
-  popupAnchor: [1, -34],
-});
+const { MapPin } = LucideIcons as any;
 
-function LocationMarker({ location, setLocation }: any) {
+// ตัวคุมการลากแผนที่
+function MapController({ setLocation, centerPos, onMoveStart }: any) {
   const map = useMap();
-
-  // ✅ แก้ไข: ใช้ useEffect เพื่อป้องกัน Loop นรก
-  useEffect(() => {
-    if (location) {
-      // ใช้ flyTo แทน setView เพื่อให้แผนที่เลื่อนไปแบบนุ่มๆ
-      map.flyTo(location, map.getZoom(), {
-        animate: true,
-        duration: 1.5 // ใช้เวลา 1.5 วิในการบินไป
-      });
-    }
-  }, [location, map]); // ทำงานเมื่อ location เปลี่ยนเท่านั้น
-
+  
   useMapEvents({
-    click(e) {
-      setLocation({ lat: e.latlng.lat, lng: e.latlng.lng });
+    movestart: () => {
+      onMoveStart(true); // เริ่มลาก -> ยกหมุดขึ้น
+    },
+    moveend: () => {
+      onMoveStart(false); // หยุดลาก -> วางหมุดลง
+      const center = map.getCenter();
+      setLocation({ lat: center.lat, lng: center.lng });
     },
   });
 
-  return location ? (
-    <Marker position={location} icon={iconDefault} />
-  ) : null;
+  // บินไปหาพิกัด (ถ้ามีการกดปุ่ม GPS)
+  useEffect(() => {
+    if (centerPos) {
+        const currentCenter = map.getCenter();
+        const dist = map.distance(currentCenter, [centerPos.lat, centerPos.lng]);
+        if (dist > 10) { 
+            map.flyTo([centerPos.lat, centerPos.lng], 17, { duration: 1.5 });
+        }
+    }
+  }, [centerPos, map]);
+
+  return null;
 }
 
 export default function MapPicker({ location, setLocation }: any) {
-  // ... (ส่วน return MapContainer เหมือนเดิม) ...
+  const [isDragging, setIsDragging] = useState(false);
+
   return (
-    <MapContainer 
-      center={[location.lat, location.lng]} 
-      zoom={13} 
-      scrollWheelZoom={false}
-      style={{ height: "100%", width: "100%" }}
-    >
-      <TileLayer 
-        attribution='&copy; OpenStreetMap contributors'
-        url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" 
-      />
-      <LocationMarker location={location} setLocation={setLocation} />
-    </MapContainer>
+    <div className="relative w-full h-full bg-slate-200">
+        <MapContainer 
+            center={[location.lat, location.lng]} 
+            zoom={17} 
+            scrollWheelZoom={true}
+            style={{ height: "100%", width: "100%" }}
+            zoomControl={false}
+        >
+            {/* 🟢 ใช้ Google Maps Roadmap (แบบปกติ เห็นถนนชัด) */}
+            <TileLayer 
+                url="http://mt0.google.com/vt/lyrs=m&hl=th&x={x}&y={y}&z={z}" 
+                attribution='&copy; Google Maps' 
+            />
+            
+            <MapController 
+                setLocation={setLocation} 
+                centerPos={location} 
+                onMoveStart={setIsDragging}
+            />
+        </MapContainer>
+
+        {/* 🎯 เป้าปักหมุดตรงกลาง (Animation นุ่มนวล) */}
+        <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 z-[1000] pointer-events-none flex flex-col items-center justify-end pb-8">
+            <div className={`transition-transform duration-200 ${isDragging ? '-translate-y-3 scale-110' : 'translate-y-0'}`}>
+                <MapPin size={42} className="text-red-600 fill-red-600 drop-shadow-2xl" />
+            </div>
+            <div className={`w-3 h-1.5 bg-black/40 rounded-full blur-[2px] transition-opacity duration-200 ${isDragging ? 'opacity-30 scale-75' : 'opacity-60 scale-100'}`}></div>
+        </div>
+
+        <div className="absolute bottom-3 left-0 right-0 flex justify-center z-[1000] pointer-events-none">
+            <span className="bg-white/90 text-slate-700 text-[10px] font-bold px-3 py-1.5 rounded-full shadow-md border border-slate-200">
+                เลื่อนแผนที่ให้ตรงจุดเกิดเหตุ
+            </span>
+        </div>
+    </div>
   );
 }
