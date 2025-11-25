@@ -35,7 +35,7 @@ const auth = getAuth(app);
 const genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
 
 // ใช้ชื่อโมเดลที่เสถียรกว่าสำหรับ Server
-const MODEL_CANDIDATES = ["gemini-1.5-flash", "gemini-pro-vision"]; 
+const MODEL_CANDIDATES = ["gemini-flash-latest", "gemini-pro-latest"]; 
 
 console.log("🚀 กำลังเริ่มระบบ AI Worker...");
 
@@ -46,8 +46,8 @@ async function start() {
     console.log("🔑 Login Firebase สำเร็จ!");
 
     // 2. เลือกโมเดล (ใช้ Flash เป็นหลักเพราะไวและถูก)
-    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
-    console.log(`✅ พร้อมทำงานด้วยโมเดล: gemini-1.5-flash`);
+    const model = genAI.getGenerativeModel({ model: "gemini-flash-latest" });
+    console.log(`✅ พร้อมทำงานด้วยโมเดล: gemini-flash-latest`);
 
     // 3. เริ่มเฝ้า Database
     console.log("👀 หุ่นยนต์พร้อมทำงาน! รอรับเคส...");
