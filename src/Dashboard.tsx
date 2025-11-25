@@ -1,4 +1,4 @@
-// src/Dashboard.tsx (Master Version: Responsive + Actions + Full Filters)
+// src/Dashboard.tsx (Premium UI Version ✨)
 import { useState, useEffect, useMemo } from "react";
 import { db } from "./firebase";
 import { collection, onSnapshot, query, doc, updateDoc } from "firebase/firestore";
@@ -8,22 +8,13 @@ import L from "leaflet";
 import * as LucideIcons from "lucide-react"; 
 import { Link } from "react-router-dom";
 
-// --- 1. ส่วน Import ไอคอน (ดึงมาเฉพาะที่ใช้จริง ลดขนาดไฟล์) ---
+// --- 1. Icons ---
 const { 
-  AlertTriangle, 
-  CheckCircle, 
-  Navigation, 
-  ArrowRightCircle, 
-  Activity, 
-  Users, 
-  MapPin, 
-  Search, 
-  Siren, 
-  CheckCircle2, 
-  RefreshCw 
+  AlertTriangle, CheckCircle2, Navigation, ArrowRightCircle, Activity, 
+  Users, MapPin, Search, Siren, Phone, Clock, Filter, Menu 
 } = LucideIcons as any;
 
-// --- 2. Interface (กำหนดประเภทข้อมูล เพื่อความแม่นยำ) ---
+// --- 2. Interface ---
 interface RequestData {
   id: string;
   name: string;
@@ -38,7 +29,6 @@ interface RequestData {
     district: string;
     subdistrict: string;
     details: string;
-    postcode?: string;
   };
   imageUrl?: string;
   status: 'waiting' | 'inprogress' | 'completed';
@@ -49,111 +39,94 @@ interface RequestData {
   };
 }
 
-// --- 3. ฟังก์ชันสร้างหมุดบนแผนที่ (Label Marker) ---
+// --- 3. Marker Logic ---
 const createLabelIcon = (name: string, score: number, status: string) => {
-  let borderColor = "#22c55e"; // เขียว (Default)
-  let textColor = "#15803d";
+  let borderColor = "#10b981"; // Emerald Green
+  let textColor = "#047857";
   let bgColor = "white";
   
-  // Logic เปลี่ยนสีตามสถานะและความเสี่ยง
   if (status === 'completed') {
-    borderColor = "#64748b"; // เทา (เสร็จแล้ว)
+    borderColor = "#64748b"; // Slate
     textColor = "#64748b";
-    bgColor = "#f1f5f9";
+    bgColor = "#f8fafc";
   } else if (status === 'inprogress') {
-    borderColor = "#f97316"; // ส้ม (กำลังทำ)
+    borderColor = "#f97316"; // Orange
     textColor = "#c2410c";
   } else if (score >= 8) {
-    borderColor = "#ef4444"; // แดง (วิกฤต)
+    borderColor = "#ef4444"; // Red
     textColor = "#b91c1c";
   } else if (score >= 5) {
-    borderColor = "#f97316"; // ส้ม (ปานกลาง)
-    textColor = "#c2410c";
+    borderColor = "#f59e0b"; // Amber
+    textColor = "#b45309";
   }
 
-  // HTML CSS สำหรับป้ายชื่อ
   const html = `
     <div style="
       background-color: ${bgColor};
       border: 2px solid ${borderColor};
-      border-radius: 8px;
-      padding: 4px 8px;
+      border-radius: 12px;
+      padding: 6px 12px;
       white-space: nowrap;
-      font-weight: bold;
-      font-size: 12px;
+      font-family: 'Kanit', sans-serif;
+      font-weight: 600;
+      font-size: 13px;
       color: ${textColor};
-      box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+      box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
       text-align: center;
       position: relative;
       display: inline-block;
       transform: translate(-50%, -50%);
-      min-width: 80px;
+      min-width: 90px;
     ">
-      <div style="display:flex; align-items:center; justify-content:center; gap:4px;">
+      <div style="display:flex; align-items:center; justify-content:center; gap:6px;">
         <span>${name}</span>
-        ${status === 'waiting' ? `<span style="background:${borderColor}; color:white; border-radius:50%; width:16px; height:16px; font-size:10px; display:flex; align-items:center; justify-content:center;">${score}</span>` : ''}
+        ${status === 'waiting' ? `<span style="background:${borderColor}; color:white; border-radius:99px; padding: 0 6px; font-size:10px; height:18px; display:flex; align-items:center; justify-content:center;">${score}</span>` : ''}
       </div>
       
       <div style="
-        position: absolute;
-        bottom: -6px;
-        left: 50%;
-        transform: translateX(-50%);
-        width: 0; 
-        height: 0; 
-        border-left: 6px solid transparent;
-        border-right: 6px solid transparent;
-        border-top: 6px solid ${borderColor};
+        position: absolute; bottom: -8px; left: 50%; transform: translateX(-50%);
+        width: 0; height: 0; 
+        border-left: 7px solid transparent; border-right: 7px solid transparent;
+        border-top: 7px solid ${borderColor};
       "></div>
     </div>
   `;
 
-  return L.divIcon({
-    className: "custom-div-icon",
-    html: html,
-    iconSize: [100, 40],
-    iconAnchor: [50, 40]
-  });
+  return L.divIcon({ className: "custom-div-icon", html: html, iconSize: [120, 50], iconAnchor: [60, 50] });
 };
 
-// --- 4. Component ย่อย: บินไปหาจุดพิกัด ---
+// --- 4. Helper Components ---
 function MapFlyTo({ location }: { location: [number, number] }) {
   const map = useMap();
-  useEffect(() => { 
-    if (location) {
-      map.flyTo(location, 16, { duration: 1.5 });
-    }
-  }, [location, map]);
+  useEffect(() => { if (location) map.flyTo(location, 16, { duration: 1.2, easeLinearity: 0.5 }); }, [location, map]);
   return null;
 }
 
-// --- 5. Component ย่อย: การ์ดสถิติ (StatCard) ---
-function StatCard({ label, count, color, icon }: any) {
+function StatCard({ label, count, color, icon, subColor }: any) {
   return (
-    <div className="bg-white/10 rounded-lg p-2 flex items-center justify-between border border-white/10 hover:bg-white/20 transition cursor-pointer">
-      <div className="flex items-center gap-2">
-        <div className={`p-1.5 rounded-md ${color} text-white shadow-sm`}>{icon}</div>
-        <span className="text-[10px] md:text-xs text-slate-300 font-medium">{label}</span>
+    <div className={`relative overflow-hidden rounded-xl p-3 border border-white/10 ${color} shadow-lg hover:scale-[1.02] transition-transform cursor-default group`}>
+      <div className="absolute right-0 top-0 p-3 opacity-10 group-hover:opacity-20 transition-opacity transform scale-150">{icon}</div>
+      <div className="relative z-10 flex flex-col">
+        <span className="text-[10px] uppercase tracking-wider text-white/80 font-semibold">{label}</span>
+        <span className="text-2xl font-bold text-white mt-1">{count}</span>
       </div>
-      <span className="text-sm md:text-lg font-bold text-white drop-shadow-sm">{count}</span>
     </div>
   );
 }
 
 // ==========================================
-// 🚀 Main Component: Dashboard (War Room)
+// 🎨 PREMIUM DASHBOARD
 // ==========================================
 export default function Dashboard() {
   const [requests, setRequests] = useState<RequestData[]>([]);
   const [selectedLocation, setSelectedLocation] = useState<[number, number] | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
   
-  // State สำหรับ Dropdown Filter
+  // Filters
   const [selectedProvince, setSelectedProvince] = useState("ทั้งหมด");
   const [selectedDistrict, setSelectedDistrict] = useState("ทั้งหมด");
   const [selectedSubDistrict, setSelectedSubDistrict] = useState("ทั้งหมด");
 
-  // --- Real-time Listener (ดึงข้อมูลจาก Firebase) ---
   useEffect(() => {
     const q = query(collection(db, "requests"));
     const unsub = onSnapshot(q, (snapshot) => {
@@ -163,47 +136,21 @@ export default function Dashboard() {
     return () => unsub();
   }, []);
 
-  // --- Logic สำหรับ Dropdown (Memoized เพื่อความเร็ว) ---
-  const provinces = useMemo(() => {
-    const list = requests.map(r => r.address?.province).filter(Boolean);
-    return ["ทั้งหมด", ...new Set(list)];
-  }, [requests]);
+  // Filter Logic
+  const provinces = useMemo(() => ["ทั้งหมด", ...new Set(requests.map(r => r.address?.province).filter(Boolean))], [requests]);
+  const districts = useMemo(() => ["ทั้งหมด", ...new Set(requests.filter(r => selectedProvince === "ทั้งหมด" || r.address?.province === selectedProvince).map(r => r.address?.district).filter(Boolean))], [requests, selectedProvince]);
+  const subdistricts = useMemo(() => ["ทั้งหมด", ...new Set(requests.filter(r => (selectedProvince === "ทั้งหมด" || r.address?.province === selectedProvince) && (selectedDistrict === "ทั้งหมด" || r.address?.district === selectedDistrict)).map(r => r.address?.subdistrict).filter(Boolean))], [requests, selectedProvince, selectedDistrict]);
 
-  const districts = useMemo(() => {
-    const list = requests
-      .filter(r => selectedProvince === "ทั้งหมด" || r.address?.province === selectedProvince)
-      .map(r => r.address?.district).filter(Boolean);
-    return ["ทั้งหมด", ...new Set(list)];
-  }, [requests, selectedProvince]);
-
-  const subdistricts = useMemo(() => {
-    const list = requests
-      .filter(r => (selectedProvince === "ทั้งหมด" || r.address?.province === selectedProvince) && 
-                   (selectedDistrict === "ทั้งหมด" || r.address?.district === selectedDistrict))
-      .map(r => r.address?.subdistrict).filter(Boolean);
-    return ["ทั้งหมด", ...new Set(list)];
-  }, [requests, selectedProvince, selectedDistrict]);
-
-  // --- Logic การกรองข้อมูล (Filter & Sort) ---
   const filteredRequests = requests.filter(req => {
-    const matchesSearch = 
-      req.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      req.description?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      req.address?.details?.toLowerCase().includes(searchTerm.toLowerCase());
-    
-    const matchesProvince = selectedProvince === "ทั้งหมด" || req.address?.province === selectedProvince;
-    const matchesDistrict = selectedDistrict === "ทั้งหมด" || req.address?.district === selectedDistrict;
-    const matchesSubDistrict = selectedSubDistrict === "ทั้งหมด" || req.address?.subdistrict === selectedSubDistrict;
-
-    return matchesSearch && matchesProvince && matchesDistrict && matchesSubDistrict;
+    const searchLower = searchTerm.toLowerCase();
+    const matchesSearch = req.name?.toLowerCase().includes(searchLower) || req.description?.toLowerCase().includes(searchLower) || req.address?.details?.toLowerCase().includes(searchLower);
+    return matchesSearch && (selectedProvince === "ทั้งหมด" || req.address?.province === selectedProvince) && (selectedDistrict === "ทั้งหมด" || req.address?.district === selectedDistrict) && (selectedSubDistrict === "ทั้งหมด" || req.address?.subdistrict === selectedSubDistrict);
   }).sort((a, b) => {
-    // ลำดับความสำคัญ: งานยังไม่เสร็จ > Risk Score มากไปน้อย
     if (a.status === "completed" && b.status !== "completed") return 1;
     if (a.status !== "completed" && b.status === "completed") return -1;
     return (b.ai_analysis?.risk_score || 0) - (a.ai_analysis?.risk_score || 0);
   });
 
-  // --- คำนวณสถิติ ---
   const stats = {
     waiting: filteredRequests.filter(r => r.status === 'waiting').length,
     critical: filteredRequests.filter(r => r.ai_analysis?.risk_score! >= 8 && r.status !== 'completed').length,
@@ -211,148 +158,152 @@ export default function Dashboard() {
     completed: filteredRequests.filter(r => r.status === 'completed').length,
   };
 
-  // --- Function อัปเดตสถานะ (กดรับงาน / ปิดเคส) ---
   const updateStatus = async (id: string, newStatus: string, e: any) => {
-    e.stopPropagation(); // กันไม่ให้กดแล้ว Map ขยับ
-    const confirmMsg = newStatus === 'inprogress' ? "ยืนยันจะรับเคสนี้?" : "ยืนยันการปิดเคส?";
+    e.stopPropagation();
+    const confirmMsg = newStatus === 'inprogress' ? "⚠️ ยืนยันการรับเคสนี้?\n(เจ้าหน้าที่กำลังออกปฏิบัติงาน)" : "✅ ยืนยันการปิดเคส?";
     if(!confirm(confirmMsg)) return;
-    
-    try { 
-        await updateDoc(doc(db, "requests", id), { status: newStatus }); 
-    } catch (err) { 
-        console.error(err);
-        alert("เกิดข้อผิดพลาดในการอัปเดต");
-    }
+    try { await updateDoc(doc(db, "requests", id), { status: newStatus }); } catch (err) { console.error(err); alert("Error updating status"); }
   };
 
-  // --- เปิด Google Maps ---
-  const openGoogleMaps = (lat: number, lng: number, e: any) => {
+  const openMaps = (lat: number, lng: number, e: any) => {
     e.stopPropagation();
     window.open(`https://www.google.com/maps/search/?api=1&query=${lat},${lng}`, '_blank');
   };
 
-  // ==========================================
-  // 🎨 UI Rendering
-  // ==========================================
+  const formatTime = (ts: any) => {
+    if(!ts) return "";
+    return new Date(ts.seconds * 1000).toLocaleTimeString("th-TH", { hour: '2-digit', minute: '2-digit' });
+  }
+
   return (
-    <div className="flex flex-col md:flex-row h-screen bg-gray-100 overflow-hidden font-sans">
+    <div className="flex flex-col md:flex-row h-screen bg-slate-50 overflow-hidden font-sans text-slate-800">
       
-      {/* ---------------- Sidebar (รายการ) ---------------- */}
-      <div className="w-full h-[55vh] md:w-1/3 md:h-full md:min-w-[420px] bg-white shadow-2xl z-20 flex flex-col border-b md:border-b-0 md:border-r border-gray-200">
+      {/* ================= SIDEBAR (Control Panel) ================= */}
+      <div className="w-full h-[60vh] md:w-[450px] md:h-full bg-white shadow-2xl z-20 flex flex-col border-r border-slate-200">
         
-        {/* Header Area */}
-        <div className="p-4 bg-slate-900 text-white shadow-md flex-shrink-0">
-          <div className="flex justify-between items-center mb-3">
-            <h1 className="text-lg md:text-xl font-bold flex items-center gap-2 text-red-500">
-              <Activity className="animate-pulse" /> WAR ROOM
-            </h1>
-            <Link to="/" className="text-[10px] md:text-xs bg-slate-800 px-3 py-1.5 rounded-full text-slate-400 border border-slate-700 hover:bg-slate-700 transition">
-                ← หน้าแจ้งเหตุ
-            </Link>
-          </div>
+        {/* 1. Header */}
+        <div className="p-5 bg-slate-900 text-white shadow-lg relative overflow-hidden">
+          <div className="absolute top-0 right-0 p-4 opacity-10"><Activity size={100} /></div>
+          <div className="relative z-10">
+            <div className="flex justify-between items-center mb-4">
+              <h1 className="text-2xl font-bold flex items-center gap-3 bg-gradient-to-r from-red-500 to-orange-500 bg-clip-text text-transparent">
+                <Siren className="text-red-500 animate-pulse" fill="currentColor" /> WAR ROOM
+              </h1>
+              <Link to="/" className="text-xs bg-slate-800/80 hover:bg-slate-700 backdrop-blur-sm px-4 py-2 rounded-full text-slate-300 border border-slate-700 transition flex items-center gap-1">
+                <ArrowRightCircle size={14} /> หน้าแจ้งเหตุ
+              </Link>
+            </div>
 
-          {/* Stat Cards Grid */}
-          <div className="grid grid-cols-4 md:grid-cols-2 gap-2 mb-3">
-            <StatCard label="รอช่วย" count={stats.waiting} color="bg-blue-500" icon={<Users size={12}/>} />
-            <StatCard label="วิกฤต!" count={stats.critical} color="bg-red-600" icon={<AlertTriangle size={12}/>} />
-            <StatCard label="กำลังช่วย" count={stats.working} color="bg-orange-500" icon={<Siren size={12}/>} />
-            <StatCard label="เสร็จสิ้น" count={stats.completed} color="bg-green-600" icon={<CheckCircle2 size={12}/>} />
-          </div>
-
-          {/* Filters Area */}
-          <div className="flex flex-col gap-2 bg-slate-800 p-2 md:p-3 rounded-lg border border-slate-700">
-             <div className="flex gap-2">
-                 <div className="flex-1">
-                    <select value={selectedProvince} onChange={(e) => { setSelectedProvince(e.target.value); setSelectedDistrict("ทั้งหมด"); setSelectedSubDistrict("ทั้งหมด"); }} className="w-full bg-slate-700 text-[10px] md:text-xs text-white border border-slate-600 rounded-md p-1.5 outline-none">
-                      {provinces.map(p => <option key={p} value={p}>{p === "ทั้งหมด" ? "ทุกจังหวัด" : p}</option>)}
-                    </select>
-                 </div>
-                 <div className="flex-1">
-                    <select value={selectedDistrict} onChange={(e) => { setSelectedDistrict(e.target.value); setSelectedSubDistrict("ทั้งหมด"); }} className="w-full bg-slate-700 text-[10px] md:text-xs text-white border border-slate-600 rounded-md p-1.5 outline-none" disabled={selectedProvince === "ทั้งหมด"}>
-                      {districts.map(d => <option key={d} value={d}>{d === "ทั้งหมด" ? "ทุกอำเภอ" : d}</option>)}
-                    </select>
-                 </div>
-             </div>
-             <div>
-                <select value={selectedSubDistrict} onChange={(e) => setSelectedSubDistrict(e.target.value)} className="w-full bg-slate-700 text-[10px] md:text-xs text-white border border-slate-600 rounded-md p-1.5 outline-none" disabled={selectedDistrict === "ทั้งหมด"}>
-                  {subdistricts.map(s => <option key={s} value={s}>{s === "ทั้งหมด" ? "ทุกตำบล/แขวง" : s}</option>)}
-                </select>
-             </div>
+            {/* Stats Grid */}
+            <div className="grid grid-cols-4 gap-2">
+              <StatCard label="รอช่วย" count={stats.waiting} color="bg-blue-600" icon={<Users />} />
+              <StatCard label="วิกฤต" count={stats.critical} color="bg-red-600" icon={<AlertTriangle />} />
+              <StatCard label="กำลังช่วย" count={stats.working} color="bg-orange-500" icon={<Navigation />} />
+              <StatCard label="เสร็จสิ้น" count={stats.completed} color="bg-emerald-600" icon={<CheckCircle2 />} />
+            </div>
           </div>
         </div>
         
-        {/* Search Bar */}
-        <div className="p-2 md:p-3 border-b border-gray-100 bg-white sticky top-0 z-10 flex-shrink-0">
-            <div className="relative">
-                <Search size={16} className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400"/>
-                <input type="text" placeholder="ค้นหาเคส (ชื่อ, ที่อยู่, รายละเอียด)..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="w-full pl-9 pr-4 py-1.5 md:py-2 text-sm border border-gray-200 rounded-lg focus:ring-blue-500 outline-none bg-gray-50"/>
+        {/* 2. Filters & Search */}
+        <div className="p-4 bg-white border-b border-slate-100 shadow-sm space-y-3">
+            {/* Search */}
+            <div className="relative group">
+                <Search size={18} className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400 group-focus-within:text-blue-500 transition-colors"/>
+                <input type="text" placeholder="ค้นหาชื่อ, เบอร์โทร, รายละเอียด..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 focus:bg-white outline-none transition-all"/>
+            </div>
+            
+            {/* Dropdowns */}
+            <div className="grid grid-cols-3 gap-2">
+                 <select value={selectedProvince} onChange={(e) => { setSelectedProvince(e.target.value); setSelectedDistrict("ทั้งหมด"); }} className="bg-slate-50 border border-slate-200 text-slate-600 text-xs rounded-lg p-2 outline-none focus:ring-2 focus:ring-blue-500">
+                    {provinces.map(p => <option key={p} value={p}>{p === "ทั้งหมด" ? "จ.ทั้งหมด" : p}</option>)}
+                 </select>
+                 <select value={selectedDistrict} onChange={(e) => { setSelectedDistrict(e.target.value); setSelectedSubDistrict("ทั้งหมด"); }} className="bg-slate-50 border border-slate-200 text-slate-600 text-xs rounded-lg p-2 outline-none focus:ring-2 focus:ring-blue-500" disabled={selectedProvince === "ทั้งหมด"}>
+                    {districts.map(d => <option key={d} value={d}>{d === "ทั้งหมด" ? "อ.ทั้งหมด" : d}</option>)}
+                 </select>
+                 <select value={selectedSubDistrict} onChange={(e) => setSelectedSubDistrict(e.target.value)} className="bg-slate-50 border border-slate-200 text-slate-600 text-xs rounded-lg p-2 outline-none focus:ring-2 focus:ring-blue-500" disabled={selectedDistrict === "ทั้งหมด"}>
+                    {subdistricts.map(s => <option key={s} value={s}>{s === "ทั้งหมด" ? "ต.ทั้งหมด" : s}</option>)}
+                 </select>
             </div>
         </div>
 
-        {/* Scrollable List */}
-        <div className="flex-1 overflow-y-auto p-2 md:p-3 space-y-3 bg-slate-50">
+        {/* 3. Case List */}
+        <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-slate-50/50">
           {filteredRequests.length === 0 && (
-             <div className="text-center py-10 text-gray-400 text-sm">ไม่พบข้อมูลในพื้นที่นี้</div>
+             <div className="flex flex-col items-center justify-center h-40 text-slate-400 space-y-2">
+                <Filter size={40} className="text-slate-300"/>
+                <span className="text-sm font-medium">ไม่พบข้อมูลตามที่ระบุ</span>
+             </div>
           )}
 
           {filteredRequests.map((req) => {
             const isDone = req.status === 'completed';
             const isWorking = req.status === 'inprogress';
             const score = req.ai_analysis?.risk_score || 0;
-            let borderClass = isDone ? "border-slate-200 bg-slate-50 opacity-60" : (score >= 8 ? "border-red-600 bg-red-50/40" : (score >= 5 ? "border-orange-400 bg-orange-50/40" : "border-green-500 bg-white"));
-
+            
+            // Dynamic Styles
+            let cardBorder = isDone ? "border-l-slate-300" : (score >= 8 ? "border-l-red-500" : (score >= 5 ? "border-l-orange-400" : "border-l-emerald-500"));
+            let badgeStyle = isDone ? "bg-slate-100 text-slate-500" : (score >= 8 ? "bg-red-100 text-red-700" : (score >= 5 ? "bg-orange-100 text-orange-700" : "bg-emerald-100 text-emerald-700"));
+            
             return (
-              <div key={req.id} onClick={() => req.location && setSelectedLocation([req.location.lat, req.location.lng])} className={`p-3 rounded-xl border-l-4 shadow-sm cursor-pointer hover:shadow-md transition-all group relative overflow-hidden ${borderClass}`}>
+              <div key={req.id} onClick={() => req.location && setSelectedLocation([req.location.lat, req.location.lng])} className={`bg-white rounded-xl p-4 shadow-sm hover:shadow-md border border-slate-100 ${cardBorder} border-l-[6px] transition-all cursor-pointer group relative overflow-hidden`}>
                 
-                {/* ลายน้ำ 'เสร็จแล้ว' */}
-                {isDone && <CheckCircle size={80} className="absolute -right-4 -bottom-4 text-green-200/50 rotate-[-15deg]"/>}
+                {/* Header: Name & Status */}
+                <div className="flex justify-between items-start mb-2">
+                   <div className="flex items-center gap-2">
+                      <span className={`text-[10px] font-bold px-2 py-1 rounded-md uppercase tracking-wide flex items-center gap-1 ${badgeStyle}`}>
+                         {isDone ? <CheckCircle2 size={10}/> : <Activity size={10}/>}
+                         {isDone ? "Completed" : `Risk Score: ${score}`}
+                      </span>
+                      {isWorking && !isDone && <span className="text-[10px] bg-orange-50 text-orange-600 border border-orange-100 px-2 py-1 rounded-md flex items-center gap-1 font-bold"><Siren size={10} className="animate-pulse"/> กำลังปฏิบัติงาน</span>}
+                   </div>
+                   <span className="text-[10px] text-slate-400 flex items-center gap-1 bg-slate-50 px-2 py-0.5 rounded-full"><Clock size={10}/> {formatTime(req.timestamp)}</span>
+                </div>
 
-                <div className="flex justify-between items-start gap-2 relative z-10">
-                  <div className="flex-1">
-                    {/* Tags */}
-                    <div className="flex flex-wrap items-center gap-1.5 mb-2">
-                      {!isDone ? (
-                          <span className={`text-[10px] font-bold px-2 py-0.5 rounded text-white shadow-sm ${score >= 8 ? 'bg-red-600 animate-pulse' : score >= 5 ? 'bg-orange-500' : 'bg-green-600'}`}>RISK {score}</span>
-                      ) : (<span className="text-[10px] bg-slate-500 text-white px-2 py-0.5 rounded flex items-center gap-1 shadow-sm"><CheckCircle size={10}/> จบงานแล้ว</span>)}
+                {/* Content */}
+                <div className="flex gap-3">
+                   <div className="flex-1">
+                      <h3 className="font-bold text-slate-800 text-base">{req.name}</h3>
+                      <div className="flex items-center gap-1 text-xs text-slate-500 mt-1 mb-2">
+                         <Phone size={12} className="text-blue-500"/> {req.contact} 
+                         <span className="mx-1">•</span> 
+                         <Users size={12} className="text-blue-500"/> {req.peopleCount} คน
+                      </div>
                       
-                      {isWorking && !isDone && <span className="text-[10px] bg-orange-100 text-orange-700 font-bold px-2 py-0.5 rounded flex items-center gap-1 border border-orange-200"><RefreshCw size={10} className="animate-spin"/> กำลังช่วยเหลือ</span>}
+                      {/* Description Box */}
+                      <div className="bg-slate-50 rounded-lg p-2 border border-slate-100 text-xs text-slate-600 italic mb-3 leading-relaxed">
+                         "{req.description}"
+                      </div>
                       
-                      {req.peopleCount > 1 && <span className="text-[10px] bg-blue-100 text-blue-700 px-2 py-0.5 rounded border border-blue-200 flex items-center gap-1"><Users size={10}/> {req.peopleCount}</span>}
-                    </div>
+                      {/* Location */}
+                      {req.address?.details && <div className="flex items-start gap-1.5 text-[11px] text-slate-500 mb-3"><MapPin size={12} className="mt-0.5 text-red-400 flex-shrink-0"/> <span>{req.address.details} {req.address.subdistrict} {req.address.district}</span></div>}
 
-                    <h3 className="font-bold text-sm md:text-base text-gray-800 line-clamp-1">{req.name}</h3>
-                    {req.address?.details && <p className="text-[10px] text-slate-500 line-clamp-1 mb-1"><MapPin size={10} className="inline"/> {req.address.details} {req.address.subdistrict} {req.address.district}</p>}
-                    <p className="text-xs text-gray-600 bg-white/60 p-1.5 rounded border border-slate-100 line-clamp-2">"{req.description}"</p>
-                    
-                    {/* Action Buttons */}
-                    <div className="grid grid-cols-2 gap-2 mt-3 pt-2 border-t border-slate-200/50">
-                        {/* ปุ่มนำทาง */}
-                        <button onClick={(e) => openGoogleMaps(req.location!.lat, req.location!.lng, e)} className="col-span-1 py-1.5 bg-slate-100 text-slate-600 rounded-lg hover:bg-slate-200 text-xs font-bold flex justify-center items-center gap-1 border border-slate-200 transition">
-                            <Navigation size={12} /> นำทาง
-                        </button>
-
-                        {/* ปุ่มเปลี่ยนสถานะ */}
-                        {req.status === 'waiting' && (
-                            <button onClick={(e) => updateStatus(req.id, 'inprogress', e)} className="col-span-1 py-1.5 bg-orange-500 text-white rounded-lg hover:bg-orange-600 text-xs font-bold flex justify-center items-center gap-1 shadow-sm shadow-orange-200 transition active:scale-95">
-                                <ArrowRightCircle size={12} /> รับงานนี้
+                      {/* Action Buttons */}
+                      <div className="grid grid-cols-2 gap-2 mt-auto">
+                         <button onClick={(e) => openMaps(req.location!.lat, req.location!.lng, e)} className="flex items-center justify-center gap-1.5 py-2 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-600 text-xs font-bold transition">
+                            <Navigation size={14}/> นำทาง
+                         </button>
+                         
+                         {req.status === 'waiting' && (
+                            <button onClick={(e) => updateStatus(req.id, 'inprogress', e)} className="flex items-center justify-center gap-1.5 py-2 rounded-lg bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 text-white text-xs font-bold shadow-md shadow-orange-200 transition transform active:scale-95">
+                                <ArrowRightCircle size={14}/> รับงาน
                             </button>
-                        )}
-                        
-                        {req.status === 'inprogress' && (
-                            <button onClick={(e) => updateStatus(req.id, 'completed', e)} className="col-span-1 py-1.5 bg-green-500 text-white rounded-lg hover:bg-green-600 text-xs font-bold flex justify-center items-center gap-1 shadow-sm shadow-green-200 transition active:scale-95">
-                                <CheckCircle size={12} /> ปิดเคส
+                         )}
+                         {req.status === 'inprogress' && (
+                            <button onClick={(e) => updateStatus(req.id, 'completed', e)} className="flex items-center justify-center gap-1.5 py-2 rounded-lg bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700 text-white text-xs font-bold shadow-md shadow-emerald-200 transition transform active:scale-95">
+                                <CheckCircle2 size={14}/> ปิดเคส
                             </button>
-                        )}
-
-                        {req.status === 'completed' && (
-                            <div className="col-span-1 py-1.5 text-slate-400 text-xs text-center border border-slate-100 rounded-lg bg-slate-50 cursor-not-allowed">
-                                เรียบร้อย
-                            </div>
-                        )}
-                    </div>
-
-                  </div>
-                  {req.imageUrl && <img src={req.imageUrl} className="w-16 h-16 md:w-20 md:h-20 rounded-lg object-cover border bg-white shadow-sm flex-shrink-0" />}
+                         )}
+                         {req.status === 'completed' && <div className="flex items-center justify-center text-xs text-slate-400 font-medium bg-slate-50 rounded-lg border border-slate-100 cursor-default">เสร็จสิ้นแล้ว</div>}
+                      </div>
+                   </div>
+                   
+                   {/* Image */}
+                   {req.imageUrl && (
+                      <div className="w-20 flex-shrink-0 flex flex-col gap-2">
+                        <img src={req.imageUrl} className="w-20 h-20 rounded-xl object-cover border border-slate-200 shadow-sm" />
+                        {req.contact && <a href={`tel:${req.contact}`} onClick={(e)=>e.stopPropagation()} className="w-full py-1.5 bg-green-50 text-green-600 border border-green-200 rounded-lg text-[10px] font-bold text-center hover:bg-green-100 flex justify-center gap-1"><Phone size={10}/> โทร</a>}
+                      </div>
+                   )}
                 </div>
               </div>
             );
@@ -360,10 +311,10 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {/* ---------------- Map Section ---------------- */}
-      <div className="flex-1 w-full h-[45vh] md:h-full relative z-0">
-        <MapContainer center={[13.7563, 100.5018]} zoom={10} style={{ height: "100%", width: "100%" }}>
-          <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" attribution='© OpenStreetMap' />
+      {/* ================= MAP SECTION ================= */}
+      <div className="flex-1 w-full h-[40vh] md:h-full relative z-0 bg-slate-200">
+        <MapContainer center={[13.7563, 100.5018]} zoom={10} style={{ height: "100%", width: "100%" }} zoomControl={false}>
+          <TileLayer url="https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png" attribution='&copy; CARTO' />
           {selectedLocation && <MapFlyTo location={selectedLocation} />}
 
           {filteredRequests.map((req) => {
@@ -373,21 +324,13 @@ export default function Dashboard() {
 
             return (
               <Marker key={req.id} position={req.location} icon={icon}>
-                <Popup>
-                  <div className="text-center min-w-[160px]">
-                    <b className="text-sm">{req.name}</b>
-                    <br/>
-                    <div className="my-2">
-                        {req.status === 'waiting' && <span className="bg-red-100 text-red-700 px-2 py-1 rounded-full text-xs font-bold">รอความช่วยเหลือ</span>}
-                        {req.status === 'inprogress' && <span className="bg-orange-100 text-orange-700 px-2 py-1 rounded-full text-xs font-bold animate-pulse">🚑 กำลังเดินทางไป</span>}
-                        {req.status === 'completed' && <span className="bg-green-100 text-green-700 px-2 py-1 rounded-full text-xs font-bold">✅ เสร็จสิ้น</span>}
-                    </div>
-                    
-                    <p className="text-xs text-slate-500 mb-2">"{req.description}"</p>
-
+                <Popup className="custom-popup">
+                  <div className="text-center min-w-[180px] font-sans p-1">
+                    <b className="text-sm text-slate-800">{req.name}</b>
+                    <p className="text-xs text-slate-500 mt-1 mb-2 line-clamp-2">"{req.description}"</p>
                     {req.status !== 'completed' && (
-                         <button onClick={(e) => updateStatus(req.id, req.status === 'waiting' ? 'inprogress' : 'completed', e)} className={`mt-1 w-full py-1.5 text-white rounded text-xs font-bold shadow-sm ${req.status === 'waiting' ? 'bg-orange-500 hover:bg-orange-600' : 'bg-green-600 hover:bg-green-700'}`}>
-                            {req.status === 'waiting' ? 'กดรับงาน' : 'กดปิดเคส'}
+                         <button onClick={(e) => updateStatus(req.id, req.status === 'waiting' ? 'inprogress' : 'completed', e)} className={`w-full py-1.5 text-white rounded-lg text-xs font-bold shadow-sm transition ${req.status === 'waiting' ? 'bg-orange-500 hover:bg-orange-600' : 'bg-emerald-600 hover:bg-emerald-700'}`}>
+                            {req.status === 'waiting' ? 'รับงานนี้' : 'ปิดเคส'}
                          </button>
                     )}
                   </div>
