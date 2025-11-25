@@ -10,3 +10,36 @@ body {
   margin: 0;
   padding: 0;
 }
+
+/* --- 🟢 เพิ่ม CSS สำหรับหมุดชื่อ (Label Marker) --- */
+.custom-div-icon {
+  background: transparent !important;
+  border: none !important;
+}
+
+.marker-label {
+  position: relative;
+  display: inline-block;
+  padding: 4px 8px;
+  border-radius: 20px;
+  background-color: white;
+  font-weight: bold;
+  font-size: 12px;
+  white-space: nowrap;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+  text-align: center;
+  transform: translate(-50%, -50%); /* จัดกึ่งกลาง */
+}
+
+/* สามเหลี่ยมชี้ลง */
+.marker-label::after {
+  content: '';
+  position: absolute;
+  bottom: -5px;
+  left: 50%;
+  transform: translateX(-50%);
+  border-width: 5px 5px 0;
+  border-style: solid;
+  /* สีจะถูก override ด้วย inline style ใน JS */
+  border-color: inherit; 
+}

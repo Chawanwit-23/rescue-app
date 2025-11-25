@@ -9,11 +9,11 @@ import http from "http"; // เพิ่มตัวนี้
 // ==========================================
 
 // 1. ใส่ Gemini API Key (จาก Google AI Studio)
-const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
+const GEMINI_API_KEY = "AIzaSyB8yVSPTyOqfLX2w3J8fnIpNeol1wKXId4";//process.env.GEMINI_API_KEY
 
 // 2. ใส่ Firebase Config (ก๊อปมาจากไฟล์ src/firebase.ts ได้เลย)
 const FIREBASE_CONFIG = {
-  apiKey: "process.env.FIREBASE_API_KEY",
+  apiKey: "AIzaSyCiUYuGveDtyySIcX3aYoskQDw8PoTbPR8",//process.env.FIREBASE_API_KEY
   authDomain: "flood-rescue-ai.firebaseapp.com",
   projectId: "flood-rescue-ai",
   storageBucket: "flood-rescue-ai.firebasestorage.app",
