@@ -3,7 +3,7 @@ import { getFirestore } from "firebase/firestore";
 import { getAuth } from "firebase/auth";
 
 const firebaseConfig = {
-  apiKey: "AIzaSyCiUYuGveDtyySIcX3aYoskQDw8PoTbPR8",
+  apiKey: "process.env.FIREBASE_API_KEY",
   authDomain: "flood-rescue-ai.firebaseapp.com",
   projectId: "flood-rescue-ai",
   storageBucket: "flood-rescue-ai.firebasestorage.app",
