@@ -1,4 +1,4 @@
-// ai-worker.mjs (ฉบับแก้ไข: รันบน Server ได้ + แก้ Status ปุ่มหาย)
+// ai-worker.mjs (แก้ไขเฉพาะ Logic สถานะ: ให้ปุ่ม "รอช่วย" ยังอยู่)
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { initializeApp } from "firebase/app";
 import {
@@ -9,10 +9,10 @@ import {
   updateDoc,
 } from "firebase/firestore";
 import { getAuth, signInAnonymously } from "firebase/auth";
-import http from "http"; 
+import http from "http";
 
 // ==========================================
-// 🔴 ส่วนตั้งค่า (ใช้ process.env สำหรับ Server)
+// 🔴 ส่วนตั้งค่า
 // ==========================================
 
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
@@ -24,7 +24,7 @@ const FIREBASE_CONFIG = {
   storageBucket: "flood-rescue-ai.firebasestorage.app",
   messagingSenderId: "847062213330",
   appId: "1:847062213330:web:5c6af3bb8e5bf92c90830b",
-  measurementId: "G-4Z8DMG10ZM",
+  measurementId: "G-4Z8DMG10ZM"
 };
 
 // ==========================================
@@ -34,20 +34,36 @@ const db = getFirestore(app);
 const auth = getAuth(app);
 const genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
 
-// ใช้ชื่อโมเดลที่เสถียรกว่าสำหรับ Server
-const MODEL_CANDIDATES = ["gemini-flash-latest", "gemini-pro-latest"]; 
+// ✅ ส่วนนี้คงเดิมตามที่คุณขอ
+const MODEL_CANDIDATES = ["gemini-flash-latest"];
 
 console.log("🚀 กำลังเริ่มระบบ AI Worker...");
 
 async function start() {
   try {
-    // 1. Login เข้าระบบ
     await signInAnonymously(auth);
     console.log("🔑 Login Firebase สำเร็จ!");
 
-    // 2. เลือกโมเดล (ใช้ Flash เป็นหลักเพราะไวและถูก)
-    const model = genAI.getGenerativeModel({ model: "gemini-flash-latest" });
-    console.log(`✅ พร้อมทำงานด้วยโมเดล: gemini-flash-latest`);
+    // หาโมเดล (คงเดิม)
+    let activeModel = null;
+    console.log("🔍 กำลังหาโมเดล AI...");
+
+    for (const modelName of MODEL_CANDIDATES) {
+      try {
+        const model = genAI.getGenerativeModel({ model: modelName });
+        await model.generateContent("Test"); 
+        activeModel = model;
+        console.log(`✅ เจอแล้ว! จะใช้โมเดล: "${modelName}"`);
+        break;
+      } catch (e) {
+        // เงียบไว้
+      }
+    }
+
+    if (!activeModel) {
+      console.error("❌ หาโมเดล AI ไม่เจอเลย! (เช็ค API Key หรือเครือข่าย)");
+      return;
+    }
 
     // 3. เริ่มเฝ้า Database
     console.log("👀 หุ่นยนต์พร้อมทำงาน! รอรับเคส...");
@@ -57,11 +73,11 @@ async function start() {
         if (change.type === "added") {
           const data = change.doc.data();
           
-          // 🔴 LOGIC สำคัญที่แก้ให้:
-          // ตรวจสอบว่า Status เป็น waiting และ "ยังไม่เคยมีผลวิเคราะห์" (เพื่อกัน Loop)
+          // 🔴 แก้ไขจุดที่ 1: เพิ่มเงื่อนไข !data.ai_analysis
+          // ป้องกันไม่ให้ AI วิเคราะห์ซ้ำถ้ามีผลวิเคราะห์อยู่แล้ว
           if (data.status === "waiting" && !data.ai_analysis) {
             console.log(`\n🔔 พบเคสใหม่: ${data.name}`);
-            await analyzeCase(model, change.doc.id, data);
+            await analyzeCase(activeModel, change.doc.id, data);
           }
         }
       });
@@ -80,13 +96,11 @@ async function analyzeCase(model, docId, data) {
       return;
     }
 
-    // เตรียมรูปภาพ
     const base64Image = data.imageUrl.split(",")[1];
     const imagePart = {
       inlineData: { data: base64Image, mimeType: "image/jpeg" },
     };
 
-    // คำสั่ง Prompt
     const prompt = `
       คุณคือเจ้าหน้าที่กู้ภัย AI
       ดูรูปภาพและข้อมูล: "${data.description}"
@@ -100,19 +114,17 @@ async function analyzeCase(model, docId, data) {
       }
     `;
 
-    // ส่งให้ AI คิด
     const result = await model.generateContent([prompt, imagePart]);
     const responseText = result.response.text();
-
-    // แกะ JSON
     const jsonString = responseText.replace(/```json|```/g, "").trim();
     const aiResult = JSON.parse(jsonString);
 
-    // 🔴 แก้ไขจุดนี้: อัปเดตแค่ผล AI แต่ "ไม่เปลี่ยน status" 
-    // เพื่อให้ status ยังเป็น "waiting" และปุ่ม "รับงาน" ยังแสดงบน Dashboard
+    // 🔴 แก้ไขจุดที่ 2: ลบบรรทัด status: "analyzed" ออก
+    // เพื่อให้ status ยังคงเป็น "waiting" (รอช่วย) เหมือนเดิม
+    // ปุ่ม "รับงาน" บน Dashboard จะได้ไม่หาย
     await updateDoc(doc(db, "requests", docId), {
       ai_analysis: aiResult
-      // status: "analyzed"  <-- เอาบรรทัดนี้ออกครับ
+      // status: "analyzed",  <-- เอาบรรทัดนี้ออกครับ
     });
 
     console.log(
@@ -126,11 +138,9 @@ async function analyzeCase(model, docId, data) {
 // รันระบบ
 start();
 
-// Health Check Endpoint สำหรับ Server (เช่น Render/Heroku)
 const PORT = process.env.PORT || 3000;
 http
   .createServer((req, res) => {
-    res.writeHead(200, { "Content-Type": "text/plain" });
     res.write("AI Worker is Running! 🤖");
     res.end();
   })
