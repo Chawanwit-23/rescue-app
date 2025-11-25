@@ -1,6 +1,12 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { initializeApp } from "firebase/app";
-import { getFirestore, collection, onSnapshot, doc, updateDoc } from "firebase/firestore";
+import {
+  getFirestore,
+  collection,
+  onSnapshot,
+  doc,
+  updateDoc,
+} from "firebase/firestore";
 import { getAuth, signInAnonymously } from "firebase/auth";
 import http from "http"; // เพิ่มตัวนี้
 
@@ -9,17 +15,17 @@ import http from "http"; // เพิ่มตัวนี้
 // ==========================================
 
 // 1. ใส่ Gemini API Key (จาก Google AI Studio)
-const GEMINI_API_KEY = "process.env.GEMINI_API_KEY";//
+const GEMINI_API_KEY = process.env.GEMINI_API_KEY; //
 
 // 2. ใส่ Firebase Config (ก๊อปมาจากไฟล์ src/firebase.ts ได้เลย)
 const FIREBASE_CONFIG = {
-  apiKey: "process.env.FIREBASE_API_KEY",//
+  apiKey: process.env.FIREBASE_API_KEY, // 👈 ลบ " ออก ให้เหลือแค่ตัวแปรเพียวๆ
   authDomain: "flood-rescue-ai.firebaseapp.com",
   projectId: "flood-rescue-ai",
   storageBucket: "flood-rescue-ai.firebasestorage.app",
   messagingSenderId: "847062213330",
   appId: "1:847062213330:web:5c6af3bb8e5bf92c90830b",
-  measurementId: "G-4Z8DMG10ZM"
+  measurementId: "G-4Z8DMG10ZM",
 };
 
 // ==========================================
@@ -44,14 +50,14 @@ async function start() {
     // 2. หาโมเดลที่ใช้ได้
     let activeModel = null;
     console.log("🔍 กำลังหาโมเดล AI...");
-    
+
     for (const modelName of MODEL_CANDIDATES) {
       try {
         const model = genAI.getGenerativeModel({ model: modelName });
         await model.generateContent("Test"); // ลองยิงทดสอบ
         activeModel = model;
         console.log(`✅ เจอแล้ว! จะใช้โมเดล: "${modelName}"`);
-        break; 
+        break;
       } catch (e) {
         // เงียบไว้ แล้วไปลองตัวถัดไป
       }
@@ -64,7 +70,7 @@ async function start() {
 
     // 3. เริ่มเฝ้า Database
     console.log("👀 หุ่นยนต์พร้อมทำงาน! รอรับเคส...");
-    
+
     onSnapshot(collection(db, "requests"), (snapshot) => {
       snapshot.docChanges().forEach(async (change) => {
         if (change.type === "added") {
@@ -77,7 +83,6 @@ async function start() {
         }
       });
     });
-
   } catch (error) {
     console.error("❌ ระบบเริ่มไม่สำเร็จ:", error.message);
   }
@@ -86,15 +91,17 @@ async function start() {
 async function analyzeCase(model, docId, data) {
   try {
     console.log("   ...กำลังวิเคราะห์รูปภาพ...");
-    
+
     if (!data.imageUrl) {
-        console.log("   ⚠️ ไม่มีรูปภาพ ข้าม...");
-        return;
+      console.log("   ⚠️ ไม่มีรูปภาพ ข้าม...");
+      return;
     }
 
     // เตรียมรูปภาพ
     const base64Image = data.imageUrl.split(",")[1];
-    const imagePart = { inlineData: { data: base64Image, mimeType: "image/jpeg" } };
+    const imagePart = {
+      inlineData: { data: base64Image, mimeType: "image/jpeg" },
+    };
 
     // คำสั่ง Prompt
     const prompt = `
@@ -113,7 +120,7 @@ async function analyzeCase(model, docId, data) {
     // ส่งให้ AI คิด
     const result = await model.generateContent([prompt, imagePart]);
     const responseText = result.response.text();
-    
+
     // แกะ JSON
     const jsonString = responseText.replace(/```json|```/g, "").trim();
     const aiResult = JSON.parse(jsonString);
@@ -121,11 +128,12 @@ async function analyzeCase(model, docId, data) {
     // อัปเดตกลับไปที่ Database
     await updateDoc(doc(db, "requests", docId), {
       ai_analysis: aiResult,
-      status: "analyzed"
+      status: "analyzed",
     });
 
-    console.log(`✅ วิเคราะห์เสร็จ: Risk ${aiResult.risk_score}/10 (${aiResult.summary})`);
-
+    console.log(
+      `✅ วิเคราะห์เสร็จ: Risk ${aiResult.risk_score}/10 (${aiResult.summary})`
+    );
   } catch (error) {
     console.error("❌ AI Error:", error.message);
   }
@@ -135,9 +143,11 @@ async function analyzeCase(model, docId, data) {
 start();
 
 const PORT = process.env.PORT || 3000;
-http.createServer((req, res) => {
-  res.write("AI Worker is Running! 🤖"); // เขียนข้อความบอกว่าฉันยังอยู่นะ
-  res.end();
-}).listen(PORT, () => {
-  console.log(`🌍 Server listening on port ${PORT}`);
-});
+http
+  .createServer((req, res) => {
+    res.write("AI Worker is Running! 🤖"); // เขียนข้อความบอกว่าฉันยังอยู่นะ
+    res.end();
+  })
+  .listen(PORT, () => {
+    console.log(`🌍 Server listening on port ${PORT}`);
+  });
