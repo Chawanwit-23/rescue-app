@@ -7,7 +7,6 @@ import L from "leaflet";
 import * as LucideIcons from "lucide-react"; 
 import { Link } from "react-router-dom";
 
-// ใช้ destructuring แบบปลอดภัยเพื่อป้องกัน error
 const { AlertTriangle, Phone, Clock, RefreshCw, CheckCircle, Navigation, ArrowRightCircle, Activity, Users, MapPin, Search, Home, Droplets, User } = LucideIcons as any;
 
 // 🟢 ฟังก์ชันสร้างหมุดแบบป้ายชื่อ (Label Marker)
@@ -15,7 +14,7 @@ const createLabelIcon = (name: string, score: number, status: string) => {
   let borderColor = "#22c55e"; // เขียว
   let textColor = "#15803d";
   let bgColor = "white";
-   
+  
   if (status === 'completed') {
     borderColor = "#64748b"; // เทา
     textColor = "#64748b";
@@ -52,7 +51,7 @@ const createLabelIcon = (name: string, score: number, status: string) => {
         <span>${name}</span>
         ${status === 'waiting' ? `<span style="background:${borderColor}; color:white; border-radius:50%; width:16px; height:16px; font-size:10px; display:flex; align-items:center; justify-content:center;">${score}</span>` : ''}
       </div>
-       
+      
       <div style="
         position: absolute;
         bottom: -6px;
@@ -135,7 +134,7 @@ export default function Dashboard() {
       req.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
       req.description?.toLowerCase().includes(searchTerm.toLowerCase()) ||
       req.address?.details?.toLowerCase().includes(searchTerm.toLowerCase());
-     
+    
     const matchesProvince = selectedProvince === "ทั้งหมด" || req.address?.province === selectedProvince;
     const matchesDistrict = selectedDistrict === "ทั้งหมด" || req.address?.district === selectedDistrict;
     const matchesSubDistrict = selectedSubDistrict === "ทั้งหมด" || req.address?.subdistrict === selectedSubDistrict;
@@ -161,7 +160,7 @@ export default function Dashboard() {
 
   const openGoogleMaps = (lat: number, lng: number, e: any) => {
     e.stopPropagation();
-    window.open(`https://www.google.com/maps/search/?api=1&query=${lat},${lng}`, '_blank');
+    window.open(`https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}`, '_blank');
   };
 
   const formatTime = (timestamp: any) => {
@@ -170,11 +169,117 @@ export default function Dashboard() {
   };
 
   return (
-    // 📱 แก้ไข Layout หลัก: ใช้ flex-col บนมือถือ (แนวตั้ง) และ md:flex-row บนจอใหญ่ (แนวนอน)
-    <div className="flex flex-col md:flex-row h-screen bg-gray-100 font-sans overflow-hidden">
-      
-      {/* 📍 ส่วนแผนที่ (Map) - บนมือถือให้แสดงก่อน (order-1) เพื่อความเด่นชัด */}
-      <div className="order-1 md:order-2 w-full h-[40vh] md:h-full md:flex-1 relative z-0">
+    <div className="flex h-screen bg-gray-100 overflow-hidden font-sans">
+      <div className="w-1/3 min-w-[400px] bg-white shadow-2xl z-20 flex flex-col border-r border-gray-200">
+        <div className="p-5 bg-slate-900 text-white shadow-md">
+          <div className="flex justify-between items-center mb-4">
+            <h1 className="text-xl font-bold flex items-center gap-2 text-red-500">
+              <Activity className="animate-pulse" /> WAR ROOM
+            </h1>
+            <Link to="/" className="text-xs bg-slate-800 px-3 py-1.5 rounded-full text-slate-400 border border-slate-700 hover:bg-slate-700 transition">
+                ← หน้าแจ้งเหตุ
+            </Link>
+          </div>
+          <div className="grid grid-cols-2 gap-2 mb-4">
+            <StatCard label="รอช่วยเหลือ" count={stats.waiting} color="bg-blue-500" icon={<Users size={14}/>} />
+            <StatCard label="วิกฤต!" count={stats.critical} color="bg-red-600" icon={<AlertTriangle size={14}/>} />
+            <StatCard label="กำลังช่วย" count={stats.working} color="bg-orange-500" icon={<Navigation size={14}/>} />
+            <StatCard label="เสร็จสิ้น" count={stats.completed} color="bg-green-600" icon={<CheckCircle size={14}/>} />
+          </div>
+          <div className="flex flex-col gap-2 bg-slate-800 p-3 rounded-lg border border-slate-700">
+             <div className="flex gap-2">
+                 <div className="flex-1">
+                    <label className="text-[10px] text-slate-400 ml-1">จังหวัด</label>
+                    <select value={selectedProvince} onChange={(e) => { setSelectedProvince(e.target.value); setSelectedDistrict("ทั้งหมด"); setSelectedSubDistrict("ทั้งหมด"); }} className="w-full bg-slate-700 text-xs text-white border border-slate-600 rounded-md p-1.5 outline-none">
+                      {provinces.map(p => <option key={p} value={p}>{p === "ทั้งหมด" ? "ทุกจังหวัด" : p}</option>)}
+                    </select>
+                 </div>
+                 <div className="flex-1">
+                    <label className="text-[10px] text-slate-400 ml-1">อำเภอ/เขต</label>
+                    <select value={selectedDistrict} onChange={(e) => { setSelectedDistrict(e.target.value); setSelectedSubDistrict("ทั้งหมด"); }} className="w-full bg-slate-700 text-xs text-white border border-slate-600 rounded-md p-1.5 outline-none" disabled={selectedProvince === "ทั้งหมด"}>
+                      {districts.map(d => <option key={d} value={d}>{d === "ทั้งหมด" ? "ทุกอำเภอ" : d}</option>)}
+                    </select>
+                 </div>
+             </div>
+             <div>
+                <label className="text-[10px] text-slate-400 ml-1">ตำบล/แขวง</label>
+                <select value={selectedSubDistrict} onChange={(e) => setSelectedSubDistrict(e.target.value)} className="w-full bg-slate-700 text-xs text-white border border-slate-600 rounded-md p-1.5 outline-none" disabled={selectedDistrict === "ทั้งหมด"}>
+                  {subdistricts.map(s => <option key={s} value={s}>{s === "ทั้งหมด" ? "ทุกตำบล" : s}</option>)}
+                </select>
+             </div>
+          </div>
+        </div>
+        
+        <div className="p-3 border-b border-gray-100 bg-white sticky top-0 z-10">
+            <div className="relative">
+                <Search size={16} className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400"/>
+                <input type="text" placeholder="ค้นหาชื่อ, รายละเอียด, ที่อยู่..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="w-full pl-9 pr-4 py-2 text-sm border border-gray-200 rounded-lg focus:ring-blue-500 focus:border-blue-500 outline-none bg-gray-50"/>
+            </div>
+        </div>
+
+        <div className="flex-1 overflow-y-auto p-3 space-y-3 bg-slate-50">
+          {filteredRequests.length === 0 && (
+             <div className="text-center py-10 text-gray-400 text-sm">ไม่พบข้อมูลในพื้นที่นี้</div>
+          )}
+
+          {filteredRequests.map((req) => {
+            const isDone = req.status === 'completed';
+            const isWorking = req.status === 'inprogress';
+            const score = req.ai_analysis?.risk_score || 0;
+            let borderClass = isDone ? "border-slate-200 bg-slate-50 opacity-60" : (score >= 8 ? "border-red-600 bg-red-50/40" : (score >= 5 ? "border-orange-400 bg-orange-50/40" : "border-green-500 bg-white"));
+
+            return (
+              <div key={req.id} onClick={() => req.location && setSelectedLocation([req.location.lat, req.location.lng])} className={`p-3 rounded-xl border-l-4 shadow-sm cursor-pointer hover:shadow-md transition-all group ${borderClass}`}>
+                <div className="flex justify-between items-start gap-2">
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2 mb-1">
+                      {!isDone ? (
+                         <span className={`text-[10px] font-bold px-2 py-0.5 rounded text-white ${score >= 8 ? 'bg-red-600' : score >= 5 ? 'bg-orange-500' : 'bg-green-600'}`}>RISK {score}/10</span>
+                      ) : (<span className="text-[10px] bg-slate-500 text-white px-2 py-0.5 rounded flex items-center gap-1"><CheckCircle size={10}/> จบงาน</span>)}
+                      {isWorking && !isDone && <span className="text-[10px] text-orange-600 font-bold flex items-center gap-1"><RefreshCw size={10} className="animate-spin"/> กำลังช่วย</span>}
+                    </div>
+                    <h3 className="font-bold text-gray-800">{req.name}</h3>
+                    
+                    {req.address?.province ? (
+                        <div className="flex flex-col gap-1 mt-1 mb-2">
+                            <div className="flex items-start gap-1 text-xs text-slate-600 bg-white/50 p-1.5 rounded border border-slate-100">
+                                <Home size={12} className="text-orange-500 mt-0.5 flex-shrink-0" /> 
+                                <span className="font-semibold">{req.address.details}</span>
+                            </div>
+                            <div className="flex items-center gap-1 text-[10px] text-slate-500 ml-1">
+                                <MapPin size={10} /> {req.address.subdistrict} {req.address.district} {req.address.province}
+                            </div>
+                        </div>
+                    ) : ( <span className="text-xs text-slate-400 italic block my-1">ไม่มีข้อมูลที่อยู่</span> )}
+
+                    {(req.peopleCount || req.waterLevel) && (
+                        <div className="flex flex-wrap gap-2 mt-1 mb-2">
+                            {req.peopleCount && <span className="text-[10px] bg-blue-50 text-blue-600 px-1.5 py-0.5 rounded border border-blue-100 flex items-center gap-1"><Users size={10}/> {req.peopleCount} คน</span>}
+                            {req.waterLevel && <span className="text-[10px] bg-cyan-50 text-cyan-600 px-1.5 py-0.5 rounded border border-cyan-100 flex items-center gap-1"><Droplets size={10}/> {req.waterLevel}</span>}
+                            {req.reporterType && <span className="text-[10px] bg-purple-50 text-purple-600 px-1.5 py-0.5 rounded border border-purple-100 flex items-center gap-1"><User size={10}/> {req.reporterType}</span>}
+                        </div>
+                    )}
+
+                    <p className="text-xs text-gray-500 line-clamp-1 pl-1 border-l-2 border-slate-200">"{req.description}"</p>
+                    
+                    <div className="flex gap-2 mt-3">
+                        <button onClick={(e) => openGoogleMaps(req.location.lat, req.location.lng, e)} className="px-2 py-1.5 bg-blue-50 text-blue-600 rounded-md hover:bg-blue-100 text-xs flex items-center gap-1 border border-blue-200"><Navigation size={12} /> นำทาง</button>
+                        {req.status === 'waiting' && <button onClick={(e) => updateStatus(req.id, 'inprogress', e)} className="px-2 py-1.5 bg-orange-50 text-orange-600 rounded-md hover:bg-orange-100 text-xs flex items-center gap-1 border border-orange-200"><ArrowRightCircle size={12} /> รับงาน</button>}
+                        {req.status === 'inprogress' && <button onClick={(e) => updateStatus(req.id, 'completed', e)} className="px-2 py-1.5 bg-green-50 text-green-600 rounded-md hover:bg-green-100 text-xs flex items-center gap-1 border border-green-200"><CheckCircle size={12} /> ปิดเคส</button>}
+                    </div>
+                  </div>
+                  {req.imageUrl && <img src={req.imageUrl} className="w-16 h-16 rounded-lg object-cover border bg-white" />}
+                </div>
+                <div className="flex items-center justify-end gap-2 text-[10px] text-slate-400 mt-2 border-t pt-2 border-slate-100">
+                    <Phone size={10} /> {req.contact} • <Clock size={10} /> {formatTime(req.timestamp)}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      <div className="flex-1 relative z-0">
         <MapContainer center={[13.7563, 100.5018]} zoom={10} style={{ height: "100%", width: "100%" }}>
           <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" attribution='© OpenStreetMap' />
           {selectedLocation && <MapFlyTo location={selectedLocation} />}
@@ -204,110 +309,13 @@ export default function Dashboard() {
                     <div className="flex justify-center gap-2 my-2">
                        <span className={`px-2 py-0.5 rounded text-xs text-white font-bold ${score >= 8 ? 'bg-red-600' : score >= 5 ? 'bg-orange-500' : 'bg-green-600'}`}>Risk: {score}</span>
                     </div>
-                    <div className="flex justify-center gap-2 mt-2">
-                         <button onClick={(e) => openGoogleMaps(req.location.lat, req.location.lng, e)} className="px-2 py-1 bg-blue-500 text-white rounded text-xs">นำทาง</button>
-                    </div>
+                    <p className="text-xs text-gray-500 italic border-t pt-2">"{req.description}"</p>
                   </div>
                 </Popup>
               </Marker>
             );
           })}
         </MapContainer>
-      </div>
-
-      {/* 📋 ส่วนรายการ (Sidebar) - บนมือถือย้ายไปอยู่ล่าง (order-2) และปรับความกว้าง/สูง */}
-      <div className="order-2 md:order-1 w-full h-[60vh] md:h-full md:w-1/3 md:min-w-[400px] bg-white shadow-2xl z-20 flex flex-col border-r border-gray-200">
-        
-        {/* Header */}
-        <div className="p-4 bg-slate-900 text-white shadow-md flex-shrink-0">
-          <div className="flex justify-between items-center mb-3">
-            <h1 className="text-lg font-bold flex items-center gap-2 text-red-500">
-              <Activity className="animate-pulse" size={20} /> WAR ROOM
-            </h1>
-            <Link to="/" className="text-[10px] bg-slate-800 px-3 py-1.5 rounded-full text-slate-400 border border-slate-700 hover:bg-slate-700 transition">
-                ← หน้าแจ้งเหตุ
-            </Link>
-          </div>
-          {/* Stats Grid - ปรับ grid ให้แน่นขึ้นบนมือถือ */}
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 mb-3">
-            <StatCard label="รอ" count={stats.waiting} color="bg-blue-500" icon={<Users size={12}/>} />
-            <StatCard label="วิกฤต" count={stats.critical} color="bg-red-600" icon={<AlertTriangle size={12}/>} />
-            <StatCard label="ทำ" count={stats.working} color="bg-orange-500" icon={<Navigation size={12}/>} />
-            <StatCard label="เสร็จ" count={stats.completed} color="bg-green-600" icon={<CheckCircle size={12}/>} />
-          </div>
-          
-          {/* Filters - ซ่อน/ย่อบนมือถือถ้าพื้นที่น้อยเกินไป หรือใช้ scroll แนวนอนถ้าจำเป็น */}
-          <div className="flex flex-col gap-2 bg-slate-800 p-2 rounded-lg border border-slate-700">
-             <div className="flex gap-2">
-                 <div className="flex-1">
-                    <select value={selectedProvince} onChange={(e) => { setSelectedProvince(e.target.value); setSelectedDistrict("ทั้งหมด"); setSelectedSubDistrict("ทั้งหมด"); }} className="w-full bg-slate-700 text-xs text-white border border-slate-600 rounded p-1 outline-none">
-                      {provinces.map(p => <option key={p} value={p}>{p === "ทั้งหมด" ? "ทุกจว." : p}</option>)}
-                    </select>
-                 </div>
-                 <div className="flex-1">
-                    <select value={selectedDistrict} onChange={(e) => { setSelectedDistrict(e.target.value); setSelectedSubDistrict("ทั้งหมด"); }} className="w-full bg-slate-700 text-xs text-white border border-slate-600 rounded p-1 outline-none" disabled={selectedProvince === "ทั้งหมด"}>
-                      {districts.map(d => <option key={d} value={d}>{d === "ทั้งหมด" ? "ทุกอำเภอ" : d}</option>)}
-                    </select>
-                 </div>
-                 <div className="flex-1">
-                    <select value={selectedSubDistrict} onChange={(e) => setSelectedSubDistrict(e.target.value)} className="w-full bg-slate-700 text-xs text-white border border-slate-600 rounded p-1 outline-none" disabled={selectedDistrict === "ทั้งหมด"}>
-                      {subdistricts.map(s => <option key={s} value={s}>{s === "ทั้งหมด" ? "ทุกตบ." : s}</option>)}
-                    </select>
-                 </div>
-             </div>
-          </div>
-        </div>
-        
-        {/* Search */}
-        <div className="p-2 border-b border-gray-100 bg-white sticky top-0 z-10 flex-shrink-0">
-            <div className="relative">
-                <Search size={14} className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400"/>
-                <input type="text" placeholder="ค้นหา..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="w-full pl-9 pr-4 py-1.5 text-sm border border-gray-200 rounded-lg focus:ring-blue-500 focus:border-blue-500 outline-none bg-gray-50"/>
-            </div>
-        </div>
-
-        {/* List Content */}
-        <div className="flex-1 overflow-y-auto p-2 space-y-2 bg-slate-50 pb-20 md:pb-2">
-          {filteredRequests.length === 0 && (
-             <div className="text-center py-10 text-gray-400 text-sm">ไม่พบข้อมูล</div>
-          )}
-
-          {filteredRequests.map((req) => {
-            const isDone = req.status === 'completed';
-            const isWorking = req.status === 'inprogress';
-            const score = req.ai_analysis?.risk_score || 0;
-            let borderClass = isDone ? "border-slate-200 bg-slate-50 opacity-60" : (score >= 8 ? "border-red-600 bg-red-50/40" : (score >= 5 ? "border-orange-400 bg-orange-50/40" : "border-green-500 bg-white"));
-
-            return (
-              <div key={req.id} onClick={() => req.location && setSelectedLocation([req.location.lat, req.location.lng])} className={`p-3 rounded-lg border-l-4 shadow-sm cursor-pointer hover:shadow-md transition-all group ${borderClass}`}>
-                <div className="flex justify-between items-start gap-2">
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2 mb-1">
-                      {!isDone ? (
-                         <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded text-white ${score >= 8 ? 'bg-red-600' : score >= 5 ? 'bg-orange-500' : 'bg-green-600'}`}>RISK {score}</span>
-                      ) : (<span className="text-[10px] bg-slate-500 text-white px-1.5 py-0.5 rounded flex items-center gap-1"><CheckCircle size={10}/> จบ</span>)}
-                      {isWorking && !isDone && <span className="text-[10px] text-orange-600 font-bold flex items-center gap-1"><RefreshCw size={10} className="animate-spin"/> กำลังช่วย</span>}
-                    </div>
-                    <h3 className="font-bold text-sm text-gray-800 line-clamp-1">{req.name}</h3>
-                    
-                    {req.address?.province && (
-                        <div className="flex items-center gap-1 text-[10px] text-slate-500 my-1">
-                             <MapPin size={10} /> {req.address.subdistrict} {req.address.district} {req.address.province}
-                        </div>
-                    )}
-
-                    <div className="flex gap-2 mt-2">
-                        <button onClick={(e) => openGoogleMaps(req.location.lat, req.location.lng, e)} className="px-2 py-1 bg-blue-50 text-blue-600 rounded hover:bg-blue-100 text-[10px] flex items-center gap-1 border border-blue-200"><Navigation size={10} /> นำทาง</button>
-                        {req.status === 'waiting' && <button onClick={(e) => updateStatus(req.id, 'inprogress', e)} className="px-2 py-1 bg-orange-50 text-orange-600 rounded hover:bg-orange-100 text-[10px] flex items-center gap-1 border border-orange-200"><ArrowRightCircle size={10} /> รับงาน</button>}
-                        {req.status === 'inprogress' && <button onClick={(e) => updateStatus(req.id, 'completed', e)} className="px-2 py-1 bg-green-50 text-green-600 rounded hover:bg-green-100 text-[10px] flex items-center gap-1 border border-green-200"><CheckCircle size={10} /> ปิดเคส</button>}
-                    </div>
-                  </div>
-                  {req.imageUrl && <img src={req.imageUrl} className="w-12 h-12 rounded object-cover border bg-white" alt="Evidence" />}
-                </div>
-              </div>
-            );
-          })}
-        </div>
       </div>
     </div>
   );
