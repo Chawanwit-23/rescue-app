@@ -1,6 +1,5 @@
-// src/Dashboard.tsx (Final Master Version: Fixed Marker Drift + Full Features)
 import { useState, useEffect, useMemo, useRef } from "react";
-import { db } from "./firebase";
+import { db, auth } from "./firebase"; // 🟢 เพิ่ม auth
 import {
   collection,
   onSnapshot,
@@ -9,6 +8,8 @@ import {
   updateDoc,
   deleteDoc,
 } from "firebase/firestore";
+import { onAuthStateChanged, signOut } from "firebase/auth"; // 🟢 เพิ่มฟังก์ชัน Auth
+import { useNavigate } from "react-router-dom"; // 🟢 เพิ่ม Hook สำหรับเปลี่ยนหน้า
 import { MapContainer, TileLayer, Marker, Popup, useMap } from "react-leaflet";
 import "leaflet/dist/leaflet.css";
 import L from "leaflet";
@@ -33,6 +34,8 @@ const {
   X,
   Skull,
   Trash2,
+  LogOut,
+  Tent, // 🟢 เพิ่ม LogOut, Tent
 } = LucideIcons as any;
 
 // --- 2. Interface ---
@@ -130,6 +133,7 @@ const createLabelIcon = (
         }
       </div>
       
+      <!-- สามเหลี่ยมชี้ลง -->
       <div style="position:absolute; bottom:-8px; left:50%; transform:translateX(-50%); width:0; height:0; border-left:7px solid transparent; border-right:7px solid transparent; border-top:8px solid ${borderColor};"></div>
     </div>
     <style>
@@ -188,6 +192,7 @@ function StatCard({ label, count, color, icon }: any) {
 // 🎨 DASHBOARD MAIN COMPONENT
 // ==========================================
 export default function Dashboard() {
+  const navigate = useNavigate(); // 🟢 ใช้สำหรับเปลี่ยนหน้า
   const [requests, setRequests] = useState<RequestData[]>([]);
   const [selectedLocation, setSelectedLocation] = useState<
     [number, number] | null
@@ -209,6 +214,16 @@ export default function Dashboard() {
   const [showAcceptModal, setShowAcceptModal] = useState(false);
   const [targetCaseId, setTargetCaseId] = useState<string | null>(null);
   const [officerForm, setOfficerForm] = useState({ name: "", phone: "" });
+
+  // 🟢 1. AUTH GUARD: เช็คว่า Login หรือยัง?
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      if (!user) {
+        navigate("/login"); // ถ้าไม่มี user ดีดกลับไปหน้า login
+      }
+    });
+    return () => unsubscribe();
+  }, [navigate]);
 
   // --- Fetch Data ---
   useEffect(() => {
@@ -334,6 +349,14 @@ export default function Dashboard() {
     }
   };
 
+  // 🟢 ฟังก์ชัน Logout
+  const handleLogout = async () => {
+    if (confirm("ต้องการออกจากระบบ War Room?")) {
+      await signOut(auth);
+      navigate("/"); // กลับไปหน้าแรก
+    }
+  };
+
   const closeCase = async (id: string, e?: any) => {
     e?.stopPropagation();
     if (!confirm("✅ ยืนยันช่วยเหลือสำเร็จ (ปิดงาน)?")) return;
@@ -351,7 +374,7 @@ export default function Dashboard() {
     e?.stopPropagation();
     if (
       !confirm(
-        "💀 ยืนยันพบร่างผู้เสียชีวิต?\n\n(สถานะจะเปลี่ยนเป็น 'เคสดำ' ทันที)"
+        "💀 ยืนยันพบร่างผู้เสียชีวิต?\n\n(สถานะจะเปลี่ยนเป็น 'รอเก็บกู้' ทันที)"
       )
     )
       return;
@@ -510,13 +533,31 @@ export default function Dashboard() {
               </span>{" "}
               WAR ROOM
             </h1>
-            <Link
-              to="/"
-              className="text-[10px] md:text-xs bg-white/10 hover:bg-white/20 backdrop-blur-md px-3 py-1.5 rounded-full text-white border border-white/10 transition flex items-center gap-1 font-medium"
-            >
-              <ArrowRightCircle size={14} />{" "}
-              <span className="hidden md:inline">แจ้งเหตุ</span>
-            </Link>
+
+            {/* 🟢 ปุ่มเมนูด้านขวา (Logout) */}
+            <div className="flex items-center gap-2">
+              <Link
+                to="/evacuation"
+                className="p-1.5 bg-white/10 rounded-full hover:bg-white/20 transition"
+                title="จุดอพยพ"
+              >
+                <Tent size={16} />
+              </Link>
+              <Link
+                to="/"
+                className="text-[10px] md:text-xs bg-white/10 hover:bg-white/20 backdrop-blur-md px-3 py-1.5 rounded-full text-white border border-white/10 transition flex items-center gap-1 font-medium"
+              >
+                <ArrowRightCircle size={14} />{" "}
+                <span className="hidden md:inline">แจ้งเหตุ</span>
+              </Link>
+              <button
+                onClick={handleLogout}
+                className="p-1.5 bg-red-500 text-white rounded-full hover:bg-red-600 shadow-md transition"
+                title="ออกจากระบบ"
+              >
+                <LogOut size={14} />
+              </button>
+            </div>
           </div>
 
           {/* Stats Grid */}
@@ -563,7 +604,7 @@ export default function Dashboard() {
               icon={<CheckCircle2 />}
             />
             <StatCard
-              label="เคสดำ"
+              label="เสียชีวิต"
               count={stats.black}
               color="bg-gradient-to-br from-slate-700 to-black border-red-900/50"
               icon={<Skull className="text-red-500" />}
@@ -675,7 +716,7 @@ export default function Dashboard() {
                           <Activity size={10} />
                         )}
                         {req.isBlackCase
-                          ? "เคสดำ"
+                          ? "รอเก็บกู้ (เสียชีวิต)"
                           : isDone
                           ? "DONE"
                           : `RISK ${score}`}
@@ -709,7 +750,6 @@ export default function Dashboard() {
                         "{req.description}"
                       </div>
 
-                      {/* 🟢 แสดงที่อยู่ละเอียดในการ์ด */}
                       {req.address && (
                         <div className="flex items-start gap-2 text-[10px] text-slate-500 mb-3 bg-slate-50 p-2 rounded border border-slate-100">
                           <MapPin
@@ -764,7 +804,7 @@ export default function Dashboard() {
                                 onClick={(e) => finishBlackCase(req.id, e)}
                                 className="flex-1 py-1.5 text-white rounded-lg text-[10px] font-bold flex items-center justify-center gap-1 shadow-sm bg-black hover:bg-gray-800"
                               >
-                                <Trash2 size={12} /> ยืนยัน
+                                <Trash2 size={12} /> ยืนยันเก็บกู้
                               </button>
                             ) : (
                               <>
@@ -808,12 +848,10 @@ export default function Dashboard() {
           style={{ height: "100%", width: "100%" }}
           zoomControl={false}
         >
-
           <TileLayer
-            url="https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png"
-            attribution="© CARTO"
+            url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+            attribution="&copy; OpenStreetMap contributors"
           />
-          {selectedLocation && <MapFlyTo location={selectedLocation} />}
           {filteredRequests.map((req) => {
             if (!req.location) return null;
             const score = req.ai_analysis?.risk_score || 0;
@@ -942,7 +980,7 @@ export default function Dashboard() {
                               onClick={(e) => finishBlackCase(req.id, e)}
                               className="flex-1 py-1.5 text-white rounded-lg text-xs font-bold flex items-center justify-center gap-1 shadow-sm bg-black hover:bg-gray-800"
                             >
-                              <Trash2 size={12} /> ยืนยัน
+                              <Trash2 size={12} /> ยืนยันเก็บกู้
                             </button>
                           )}
                         </div>
@@ -951,7 +989,7 @@ export default function Dashboard() {
                             onClick={(e) => markAsBlackCase(req.id, e)}
                             className="w-full py-1.5 text-white rounded-lg text-xs font-bold flex items-center justify-center gap-1 shadow-sm bg-slate-700 hover:bg-black"
                           >
-                            <Skull size={12} /> แจ้งเคสดำ
+                            <Skull size={12} /> แจ้งเคสดำ (เสียชีวิต)
                           </button>
                         )}
                       </div>
