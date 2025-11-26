@@ -22,7 +22,6 @@ const getAddressFromCoords = async (lat: number, lng: number) => {
     const data = await res.json();
     const addr = data.address || {};
     
-    // สร้างคำบรรยายรายละเอียด (ตัดจังหวัด/อำเภอออก เพราะมีช่องแยกแล้ว)
     const detailsParts = [];
     if (addr.house_number) detailsParts.push(`บ้านเลขที่ ${addr.house_number}`);
     if (addr.village) detailsParts.push(`หมู่บ้าน${addr.village}`);
@@ -48,7 +47,6 @@ const getAddressFromCoords = async (lat: number, lng: number) => {
 // 🟢 ฟังก์ชัน 2: แปลงที่อยู่ -> พิกัด (Forward Geocoding)
 const getCoordsFromAddress = async (address: string) => {
   try {
-    // ค้นหาจาก OpenStreetMap
     const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(address)}&limit=1&accept-language=th`);
     const data = await res.json();
     if (data && data.length > 0) {
@@ -67,12 +65,12 @@ export default function App() {
   const [imageBase64, setImageBase64] = useState("");
   
   // State สถานะการโหลด
-  const [isResolvingAddress, setIsResolvingAddress] = useState(false); // กำลังดึงที่อยู่จากหมุด
-  const [isResolvingCoords, setIsResolvingCoords] = useState(false);   // กำลังดึงหมุดจากที่อยู่
+  const [isResolvingAddress, setIsResolvingAddress] = useState(false); 
+  const [isResolvingCoords, setIsResolvingCoords] = useState(false);   
 
-  // Refs สำหรับป้องกัน Loop (สำคัญมาก!)
-  const isInternalLocationUpdate = useRef(false); // เปลี่ยนพิกัดโดยโปรแกรม (จากการพิมพ์)
-  const isInternalAddressUpdate = useRef(false);  // เปลี่ยนที่อยู่โดยโปรแกรม (จากการลาก)
+  // Refs สำหรับป้องกัน Loop
+  const isInternalLocationUpdate = useRef(false); 
+  const isInternalAddressUpdate = useRef(false);  
 
   // State ข้อมูลฟอร์ม
   const [addressData, setAddressData] = useState({ 
@@ -86,11 +84,8 @@ export default function App() {
   const [waterLevel, setWaterLevel] = useState("ท่วมทางเท้า/ถนน");
   const [reporterType, setReporterType] = useState("ผู้ประสบภัยเอง"); 
 
-  // ------------------------------------------------------------
-  // 🔄 1. Effect: เมื่อพิกัดเปลี่ยน (ลากแมพ) -> อัปเดตที่อยู่ text
-  // ------------------------------------------------------------
+  // Effect 1: พิกัด -> ที่อยู่
   useEffect(() => {
-      // ถ้าเป็นการเปลี่ยนพิกัดจากการพิมพ์ที่อยู่ (Forward Geo) ให้ข้ามการดึงที่อยู่ซ้ำ
       if (isInternalLocationUpdate.current) {
           isInternalLocationUpdate.current = false;
           return;
@@ -100,7 +95,6 @@ export default function App() {
           setIsResolvingAddress(true);
           const addr = await getAddressFromCoords(location.lat, location.lng);
           
-          // ล็อคไม่ให้ Effect ที่ 2 ทำงาน
           isInternalAddressUpdate.current = true;
           
           setAddressData({
@@ -111,22 +105,18 @@ export default function App() {
           });
           
           setIsResolvingAddress(false);
-      }, 800); // Debounce 0.8s
+      }, 800); 
 
       return () => clearTimeout(timeoutId);
   }, [location.lat, location.lng]);
 
-  // ------------------------------------------------------------
-  // 🔄 2. Effect: เมื่อที่อยู่เปลี่ยน (พิมพ์เอง) -> อัปเดตพิกัด map
-  // ------------------------------------------------------------
+  // Effect 2: ที่อยู่ -> พิกัด
   useEffect(() => {
-      // ถ้าเป็นการเปลี่ยนที่อยู่จากการลากแมพ (Reverse Geo) ให้ข้ามการย้ายหมุดซ้ำ
       if (isInternalAddressUpdate.current) {
           isInternalAddressUpdate.current = false;
           return;
       }
 
-      // ต้องกรอกให้ครบระดับนึงก่อนค่อยค้นหา (เช่น จังหวัด+อำเภอ)
       const query = `${addressData.subdistrict} ${addressData.district} ${addressData.province}`.trim();
       if (query.length < 5) return;
 
@@ -135,25 +125,21 @@ export default function App() {
           const coords = await getCoordsFromAddress(query);
           
           if (coords) {
-              // ล็อคไม่ให้ Effect ที่ 1 ทำงาน
               isInternalLocationUpdate.current = true;
               setLocation(coords);
           }
           setIsResolvingCoords(false);
-      }, 1500); // Debounce 1.5s (รอนานหน่อย กันแมพบินว่อนตอนพิมพ์)
+      }, 1500); 
 
       return () => clearTimeout(timeoutId);
   }, [addressData.province, addressData.district, addressData.subdistrict]);
 
-
-  // --- Handlers ---
 
   const handleGetLocation = (e: any) => {
     e.preventDefault();
     if (!navigator.geolocation) return alert("อุปกรณ์ไม่รองรับ GPS");
     navigator.geolocation.getCurrentPosition(
       (pos) => {
-          // การกด GPS ถือเป็น Manual Action ให้ Trigger การดึงที่อยู่ใหม่ได้เลย
           setLocation({ lat: pos.coords.latitude, lng: pos.coords.longitude });
       },
       () => alert("กรุณาเปิด GPS หรืออนุญาตการเข้าถึงตำแหน่ง")
@@ -220,9 +206,12 @@ export default function App() {
         
         <div className="bg-slate-900 p-6 text-white text-center relative overflow-hidden">
           <div className="absolute top-0 left-0 w-full h-full bg-[radial-gradient(circle_at_top_right,_var(--tw-gradient-stops))] from-slate-800 to-slate-900 opacity-50"></div>
-          <Link to="/dashboard" className="absolute top-4 right-4 flex items-center gap-1.5 bg-white/10 hover:bg-white/20 backdrop-blur-md text-white px-3 py-1.5 rounded-full text-[10px] font-bold transition-all border border-white/10 z-10">
+          
+          {/* 🟢 แก้ลิงก์ตรงนี้: ให้ไปที่ /login */}
+          <Link to="/login" className="absolute top-4 right-4 flex items-center gap-1.5 bg-white/10 hover:bg-white/20 backdrop-blur-md text-white px-3 py-1.5 rounded-full text-[10px] font-bold transition-all border border-white/10 z-50 cursor-pointer hover:scale-105 active:scale-95">
             <ShieldCheck size={14} className="text-emerald-400" /> จนท.
           </Link>
+          
           <div className="relative z-10 flex flex-col items-center">
              <div className="bg-red-600 p-3 rounded-full shadow-lg shadow-red-900/50 mb-3 animate-pulse">
                 <AlertTriangle className="text-white" size={32} />
@@ -234,7 +223,7 @@ export default function App() {
 
         <form onSubmit={handleSubmit} className="p-5 space-y-5">
           
-          {/* 1. Map Section */}
+          {/* Map Section */}
           <div className="space-y-2">
              <div className="flex justify-between items-end px-1">
                 <label className="font-bold text-slate-700 text-sm flex items-center gap-2">
@@ -267,7 +256,7 @@ export default function App() {
 
           <hr className="border-slate-100" />
 
-          {/* 2. Address Form */}
+          {/* Address Form */}
           <div className="space-y-3 bg-slate-50 p-4 rounded-2xl border border-slate-200/60">
              <label className="font-bold text-slate-700 text-sm flex items-center gap-2">
                <Home size={18} className="text-orange-500" /> 2. ที่อยู่ (แก้ไขได้)
@@ -304,7 +293,7 @@ export default function App() {
              </div>
           </div>
 
-          {/* 3. Details */}
+          {/* Details */}
           <div className="space-y-4 bg-blue-50 p-4 rounded-2xl border border-blue-100/60">
              <label className="font-bold text-slate-700 text-sm flex items-center gap-2">
                <Info size={18} className="text-blue-500" /> 3. ข้อมูลสถานการณ์
@@ -343,7 +332,7 @@ export default function App() {
              </div>
           </div>
 
-          {/* 4. Contact */}
+          {/* Contact */}
           <div className="space-y-3">
              <div className="grid grid-cols-2 gap-3">
                 <div>
@@ -370,7 +359,7 @@ export default function App() {
              </div>
           </div>
 
-          {/* 5. Photo */}
+          {/* Photo */}
           <div className={`border-2 border-dashed rounded-2xl p-6 text-center cursor-pointer relative group transition-all ${imageBase64 ? 'border-emerald-500 bg-emerald-50/30' : 'border-slate-300 hover:border-blue-400 hover:bg-blue-50/30'}`}>
             <input type="file" onChange={handleImage} className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10" accept="image/*" />
             {imageBase64 ? (
