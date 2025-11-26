@@ -13,7 +13,7 @@ import {
 } from "lucide-react";
 
 // 🔐 รหัสลับ
-const SUPER_ADMIN_PASSWORD = import.meta.env.VITE_ADMIN_PASSWORD || "admin";
+const SUPER_ADMIN_PASSWORD = import.meta.env.VITE_ADMIN_PASSWORD;
 
 // --- Helper Icons ---
 const reqIcon = (color: string) => L.divIcon({
@@ -396,7 +396,7 @@ export default function Admin() {
             <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl overflow-hidden flex flex-col max-h-[90vh] scale-100 animate-in zoom-in-95">
                <div className="bg-slate-900 p-5 text-white flex justify-between items-center shrink-0">
                   <div>
-                     <h3 className="font-bold text-lg flex items-center gap-2"><Edit size={20}/> {isJsonMode ? 'Advanced JSON Editor' : 'Edit Record'}</h3>
+                     <h3 className="font-bold text-lg flex items-center gap-2"><Edit size={20}/> {isJsonMode ? 'Advanced JSON Editor' : 'แก้ไขข้อมูล'}</h3>
                      <p className="text-[10px] text-slate-400 font-mono mt-1">ID: {editingItem.id}</p>
                   </div>
                   <div className="flex gap-2">
