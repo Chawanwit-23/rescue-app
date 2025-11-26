@@ -211,6 +211,11 @@ export default function App() {
           <Link to="/login" className="absolute top-4 right-4 flex items-center gap-1.5 bg-white/10 hover:bg-white/20 backdrop-blur-md text-white px-3 py-1.5 rounded-full text-[10px] font-bold transition-all border border-white/10 z-50 cursor-pointer hover:scale-105 active:scale-95">
             <ShieldCheck size={14} className="text-emerald-400" /> จนท.
           </Link>
+
+          {/* 🟢 ปุ่มจุดอพยพ (เพิ่มใหม่) */}
+          <Link to="/evacuation" className="absolute top-4 left-4 flex items-center gap-1.5 bg-white/10 hover:bg-white/20 backdrop-blur-md text-white px-3 py-1.5 rounded-full text-[10px] font-bold transition-all border border-white/10 z-50 cursor-pointer">
+             <LucideIcons.Tent size={14} className="text-yellow-400" /> จุดอพยพ
+          </Link>
           
           <div className="relative z-10 flex flex-col items-center">
              <div className="bg-red-600 p-3 rounded-full shadow-lg shadow-red-900/50 mb-3 animate-pulse">
