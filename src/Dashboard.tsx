@@ -284,7 +284,7 @@ export default function Dashboard() {
               <StatCard label="วิกฤต" count={stats.critical} color="bg-gradient-to-br from-red-500 to-red-600" icon={<AlertTriangle />} />
               <StatCard label="กำลัง" count={stats.working} color="bg-gradient-to-br from-orange-400 to-orange-500" icon={<Navigation />} />
               <StatCard label="ปกติ" count={stats.completed} color="bg-gradient-to-br from-emerald-500 to-emerald-600" icon={<CheckCircle2 />} />
-              <StatCard label="เฃเคสดำ" count={stats.black} color="bg-gradient-to-br from-slate-700 to-black border-red-900/50" icon={<Skull className="text-red-500" />} />
+              <StatCard label="เคสดำ" count={stats.black} color="bg-gradient-to-br from-slate-700 to-black border-red-900/50" icon={<Skull className="text-red-500" />} />
             </div>
         </div>
         
@@ -318,7 +318,7 @@ export default function Dashboard() {
                           <div className="flex gap-2 mt-auto">
                              <button onClick={(e) => openMaps(req.location!.lat, req.location!.lng, e)} className="flex-1 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-600 text-[10px] font-bold transition flex items-center justify-center gap-1"><Navigation size={12}/> นำทาง</button>
                              {req.status === 'waiting' && (<button onClick={(e) => initiateAccept(req.id, e)} className="flex-1 py-1.5 text-white rounded-lg text-[10px] font-bold flex items-center justify-center gap-1 shadow-sm bg-orange-500 hover:bg-orange-600"><ArrowRightCircle size={12}/> รับงาน</button>)}
-                             {req.status === 'inprogress' && (<>{req.isBlackCase ? (<button onClick={(e) => finishBlackCase(req.id, e)} className="flex-1 py-1.5 text-white rounded-lg text-[10px] font-bold flex items-center justify-center gap-1 shadow-sm bg-black hover:bg-gray-800"><Trash2 size={12}/> ยืนยันเก็บกู้</button>) : (<><button onClick={(e) => closeCase(req.id, e)} className="flex-1 py-1.5 text-white rounded-lg text-[10px] font-bold flex items-center justify-center gap-1 shadow-sm bg-emerald-600 hover:bg-emerald-700"><CheckCircle2 size={12}/> ปิดงาน</button><button onClick={(e) => markAsBlackCase(req.id, e)} className="px-3 py-1.5 rounded-lg text-white text-[10px] font-bold flex items-center justify-center gap-1 shadow-sm bg-slate-700 hover:bg-black"><Skull size={12}/> เคสดำ</button></>)}</>)}
+                             {req.status === 'inprogress' && (<>{req.isBlackCase ? (<button onClick={(e) => finishBlackCase(req.id, e)} className="flex-1 py-1.5 text-white rounded-lg text-[10px] font-bold flex items-center justify-center gap-1 shadow-sm bg-black hover:bg-gray-800"><Trash2 size={12}/> ยืนยันปิดงาน</button>) : (<><button onClick={(e) => closeCase(req.id, e)} className="flex-1 py-1.5 text-white rounded-lg text-[10px] font-bold flex items-center justify-center gap-1 shadow-sm bg-emerald-600 hover:bg-emerald-700"><CheckCircle2 size={12}/> ปิดงาน</button><button onClick={(e) => markAsBlackCase(req.id, e)} className="px-3 py-1.5 rounded-lg text-white text-[10px] font-bold flex items-center justify-center gap-1 shadow-sm bg-slate-700 hover:bg-black"><Skull size={12}/> เคสดำ</button></>)}</>)}
                           </div>
                       </div>
                       {req.imageUrl && <img src={req.imageUrl} className="w-20 h-20 rounded-xl object-cover border border-slate-100 shadow-sm" />}
