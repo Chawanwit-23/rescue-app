@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { db, auth } from "./firebase";
 import { collection, addDoc, query, onSnapshot, updateDoc, doc, arrayUnion } from "firebase/firestore";
-import { onAuthStateChanged } from "firebase/auth";
+import { onAuthStateChanged, signOut } from "firebase/auth"; // 🟢 เพิ่ม signOut
 import { MapContainer, TileLayer, Marker, Popup, useMap } from "react-leaflet";
 import "leaflet/dist/leaflet.css";
 import L from "leaflet";
@@ -10,8 +10,8 @@ import { Link } from "react-router-dom";
 
 // --- Icons ---
 const { 
-  MapPin, Search, Tent, Users, Phone, Plus, X, UserCheck, ShieldCheck, Home, LayoutList, Clock 
-} = LucideIcons as any;
+  MapPin, Search, Tent, Users, Phone, Plus, X, UserCheck, ShieldCheck, Home, LayoutList, Clock, LogOut 
+} = LucideIcons as any; // 🟢 เพิ่ม LogOut
 
 // --- Interface ---
 interface Resident {
@@ -57,8 +57,8 @@ export default function Evacuation() {
   const [mapCenter, setMapCenter] = useState<[number, number] | null>(null);
   
   // Search States
-  const [centerSearchTerm, setCenterSearchTerm] = useState(""); // ค้นหาศูนย์
-  const [residentSearchTerm, setResidentSearchTerm] = useState(""); // 🟢 ค้นหาคนในศูนย์
+  const [centerSearchTerm, setCenterSearchTerm] = useState(""); 
+  const [residentSearchTerm, setResidentSearchTerm] = useState(""); 
 
   // Modal States
   const [showAddModal, setShowAddModal] = useState(false);
@@ -71,8 +71,14 @@ export default function Evacuation() {
 
   // --- Init Data & Auth ---
   useEffect(() => {
-    // ตรวจสอบว่า Login อยู่ไหม (ถ้า Login ถึงจะเป็น Admin ในหน้านี้)
-    const unsubAuth = onAuthStateChanged(auth, (user) => setIsAdmin(!!user));
+    // 🟢 ตรวจสอบ Login (กรอง Anonymous ออก เพื่อความชัวร์ว่าเป็นเจ้าหน้าที่จริง)
+    const unsubAuth = onAuthStateChanged(auth, (user) => {
+        if (user && !user.isAnonymous) {
+            setIsAdmin(true);
+        } else {
+            setIsAdmin(false);
+        }
+    });
     
     // ดึงข้อมูลศูนย์อพยพแบบ Realtime
     const q = query(collection(db, "evacuation_centers"));
@@ -86,13 +92,20 @@ export default function Evacuation() {
   // --- Filter Logics ---
   const filteredCenters = centers.filter(c => c.name.toLowerCase().includes(centerSearchTerm.toLowerCase()));
 
-  // 🟢 Logic กรองรายชื่อผู้อพยพ (ค้นหาชื่อ หรือ เบอร์โทร)
   const filteredResidents = selectedCenter?.residents?.filter(r => 
     r.name.toLowerCase().includes(residentSearchTerm.toLowerCase()) || 
     r.phone.includes(residentSearchTerm)
   ) || [];
 
   // --- Handlers ---
+
+  // 🟢 Logout Function
+  const handleLogout = async () => {
+      if(confirm("ต้องการออกจากระบบ?")) {
+          await signOut(auth);
+          setIsAdmin(false); // บังคับ state ให้เป็น false ทันที
+      }
+  };
 
   // 1. เพิ่มศูนย์อพยพ (Admin Only)
   const handleAddCenter = async (e: React.FormEvent) => {
@@ -136,17 +149,16 @@ export default function Evacuation() {
     } catch (err) { console.error(err); alert("ลงทะเบียนไม่สำเร็จ"); }
   };
 
-  // 3. ใช้ GPS ปัจจุบัน (สำหรับ Admin กรอกพิกัด)
+  // 3. ใช้ GPS ปัจจุบัน
   const getCurrentLocation = () => {
     navigator.geolocation.getCurrentPosition(pos => {
       setNewCenterForm(prev => ({ ...prev, lat: pos.coords.latitude.toString(), lng: pos.coords.longitude.toString() }));
     });
   };
 
-  // Helper: เปิดดูรายชื่อและเคลียร์ช่องค้นหา
   const openResidentsModal = (center: EvacuationCenter) => {
       setSelectedCenter(center);
-      setResidentSearchTerm(""); // ล้างคำค้นหาเก่า
+      setResidentSearchTerm("");
       setShowResidentsModal(true);
   }
 
@@ -161,24 +173,28 @@ export default function Evacuation() {
            <div className="flex justify-between items-center mb-4">
               <h1 className="text-xl font-black flex items-center gap-2"><Tent className="text-yellow-300" /> จุดอพยพ (Safe Zones)</h1>
               
-              {/* Menu Links */}
-              <div className="flex gap-2">
+              <div className="flex gap-2 items-center">
                  <Link to="/" className="p-2 bg-white/10 rounded-full hover:bg-white/20 transition" title="หน้าแจ้งเหตุ"><Home size={16}/></Link>
                  <Link to="/dashboard" className="p-2 bg-white/10 rounded-full hover:bg-white/20 transition" title="War Room"><LayoutList size={16}/></Link>
-                 {/* ปุ่ม Login / Status */}
+                 
+                 {/* 🟢 Logic ปุ่ม Login/Logout */}
                  {isAdmin ? (
-                    <span className="px-3 py-1 bg-yellow-400 text-yellow-900 text-[10px] font-bold rounded-full flex items-center gap-1 shadow-sm">
-                        <ShieldCheck size={12}/> จนท.
-                    </span>
+                    <div className="flex items-center gap-1 bg-yellow-400/20 p-1 rounded-full border border-yellow-400/30">
+                        <span className="px-2 py-0.5 text-yellow-200 text-[10px] font-bold flex items-center gap-1">
+                            <ShieldCheck size={12}/> Admin
+                        </span>
+                        <button onClick={handleLogout} className="p-1 bg-red-500 text-white rounded-full hover:bg-red-600 transition" title="ออกจากระบบ">
+                            <LogOut size={12} />
+                        </button>
+                    </div>
                  ) : (
-                    <Link to="/login" className="px-3 py-1 bg-emerald-800 text-emerald-100 text-[10px] font-bold rounded-full hover:bg-emerald-900 border border-emerald-600">
-                        จนท. Login
+                    <Link to="/login" className="px-3 py-1.5 bg-emerald-800 text-emerald-100 text-[10px] font-bold rounded-full hover:bg-emerald-900 border border-emerald-600 transition">
+                        Login จนท.
                     </Link>
                  )}
               </div>
            </div>
            
-           {/* Search Bar (Center) */}
            <div className="relative">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-emerald-200" size={16} />
               <input 
@@ -192,14 +208,13 @@ export default function Evacuation() {
         {/* Center List */}
         <div className="flex-1 overflow-y-auto p-3 space-y-3 bg-slate-50">
            
-           {/* 🟢 ปุ่มเพิ่มจุดอพยพ (แสดงเฉพาะตอน Login แล้วเท่านั้น) */}
+           {/* 🟢 แสดงเฉพาะตอน Login */}
            {isAdmin && (
              <button onClick={() => setShowAddModal(true)} className="w-full py-3 border-2 border-dashed border-emerald-400 text-emerald-700 bg-emerald-50/50 rounded-xl flex items-center justify-center gap-2 hover:bg-emerald-100 font-bold transition-all">
                 <Plus size={18}/> เพิ่มจุดอพยพใหม่
              </button>
            )}
 
-           {/* List Items */}
            {filteredCenters.length === 0 && <div className="text-center text-slate-400 mt-10 text-sm">ไม่พบศูนย์อพยพ</div>}
            
            {filteredCenters.map(center => (
@@ -231,7 +246,6 @@ export default function Evacuation() {
       {/* ================= MAP ================= */}
       <div className="flex-1 h-[45vh] md:h-full relative z-0 order-1 md:order-2">
          <MapContainer center={[13.7563, 100.5018]} zoom={10} style={{ height: "100%", width: "100%" }} zoomControl={false}>
-            {/* Google Maps Normal */}
             <TileLayer url="http://mt0.google.com/vt/lyrs=m&hl=th&x={x}&y={y}&z={z}" attribution='&copy; Google Maps' />
             <MapFlyTo location={mapCenter} />
             
