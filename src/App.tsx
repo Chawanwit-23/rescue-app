@@ -3,25 +3,40 @@ import { Link } from "react-router-dom";
 import { db } from "./firebase";
 import { collection, addDoc } from "firebase/firestore";
 import "leaflet/dist/leaflet.css";
-import * as LucideIcons from "lucide-react"; 
+import * as LucideIcons from "lucide-react";
 
 // --- Icons ---
-const { 
-  MapPin, Camera, Send, AlertTriangle, User, Phone, FileText, 
-  Loader2, Crosshair, ShieldCheck, Home, Users, Droplets, Info, Heart,
-  Edit3 
+const {
+  MapPin,
+  Camera,
+  Send,
+  AlertTriangle,
+  User,
+  Phone,
+  FileText,
+  Loader2,
+  Crosshair,
+  ShieldCheck,
+  Home,
+  Users,
+  Droplets,
+  Info,
+  Heart,
+  Edit3,
 } = LucideIcons as any;
 
 // --- Lazy Load Map ---
-const MapPicker = lazy(() => import("./components/MapPicker") as any); 
+const MapPicker = lazy(() => import("./components/MapPicker") as any);
 
 // 🟢 ฟังก์ชันแปลงพิกัด -> ที่อยู่ (ดึงเฉพาะถนน/ซอย และจังหวัด)
 const getAddressFromCoords = async (lat: number, lng: number) => {
   try {
-    const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=18&addressdetails=1&accept-language=th`);
+    const res = await fetch(
+      `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=18&addressdetails=1&accept-language=th`
+    );
     const data = await res.json();
     const addr = data.address || {};
-    
+
     // สร้างคำบรรยายรายละเอียด (เน้นจุดสังเกต ถนน ซอย)
     const detailsParts = [];
     if (addr.house_number) detailsParts.push(`บ้านเลขที่ ${addr.house_number}`);
@@ -30,17 +45,17 @@ const getAddressFromCoords = async (lat: number, lng: number) => {
     if (addr.soi) detailsParts.push(`ซอย${addr.soi}`);
     if (addr.road) detailsParts.push(`ถนน${addr.road}`);
     if (addr.landmark) detailsParts.push(addr.landmark);
-    
+
     return {
       // รายละเอียด (บ้านเลขที่/ถนน) ให้ Auto-fill เหมือนเดิม เพราะพิมพ์เองยาก
-      details: detailsParts.join(" ") || "", 
-      
+      details: detailsParts.join(" ") || "",
+
       // จังหวัด ให้ Auto-fill เพราะมักจะถูกต้องเสมอ
-      province: addr.province || addr.state || "", 
-      
+      province: addr.province || addr.state || "",
+
       // ส่วนตำบล/อำเภอ ส่งค่ากลับไปเฉยๆ แต่เราจะไม่เอาไปทับใน Form (ตาม Requirement)
-      subdistrict: addr.tambon || addr.suburb || addr.quarter || "", 
-      district: addr.amphoe || addr.district || addr.city_district || "", 
+      subdistrict: addr.tambon || addr.suburb || addr.quarter || "",
+      district: addr.amphoe || addr.district || addr.city_district || "",
     };
   } catch (error) {
     console.error("Reverse Geocode Error:", error);
@@ -52,44 +67,44 @@ export default function App() {
   const [loading, setLoading] = useState(false);
   const [location, setLocation] = useState({ lat: 13.7563, lng: 100.5018 });
   const [imageBase64, setImageBase64] = useState("");
-  
+
   // State สถานะการโหลด
-  const [isResolvingAddress, setIsResolvingAddress] = useState(false); 
+  const [isResolvingAddress, setIsResolvingAddress] = useState(false);
 
   // State ข้อมูลฟอร์ม
-  const [addressData, setAddressData] = useState({ 
-      province: "", 
-      district: "", 
-      subdistrict: "", 
-      details: "" 
+  const [addressData, setAddressData] = useState({
+    province: "",
+    district: "",
+    subdistrict: "",
+    details: "",
   });
-  
-  const [peopleCount, setPeopleCount] = useState(1); 
+
+  const [peopleCount, setPeopleCount] = useState(1);
   const [waterLevel, setWaterLevel] = useState("ท่วมทางเท้า/ถนน");
-  const [reporterType, setReporterType] = useState("ผู้ประสบภัยเอง"); 
+  const [reporterType, setReporterType] = useState("ผู้ประสบภัยเอง");
 
   // ------------------------------------------------------------
   // 🔄 Effect: เมื่อพิกัดเปลี่ยน (ลากแมพ) -> อัปเดตเฉพาะ ถนน/จังหวัด
   // ------------------------------------------------------------
   useEffect(() => {
-      const timeoutId = setTimeout(async () => {
-          setIsResolvingAddress(true);
-          const addr = await getAddressFromCoords(location.lat, location.lng);
-          
-          setAddressData(prev => ({
-              ...prev,
-              // 🟢 Auto-fill เฉพาะ จังหวัด และ รายละเอียด (ถนน/ซอย)
-              province: addr.province, 
-              details: addr.details,
-              
-              // 🔴 ตำบล/อำเภอ ไม่ต้อง Auto-fill (คงค่าเดิมที่ user พิมพ์ไว้)
-              // เพื่อป้องกันข้อมูลกระโดดไปมา และให้ user กรอกเองตามความเข้าใจ
-          }));
-          
-          setIsResolvingAddress(false);
-      }, 800); 
+    const timeoutId = setTimeout(async () => {
+      setIsResolvingAddress(true);
+      const addr = await getAddressFromCoords(location.lat, location.lng);
 
-      return () => clearTimeout(timeoutId);
+      setAddressData((prev) => ({
+        ...prev,
+        // 🟢 Auto-fill เฉพาะ จังหวัด และ รายละเอียด (ถนน/ซอย)
+        province: addr.province,
+        details: addr.details,
+
+        // 🔴 ตำบล/อำเภอ ไม่ต้อง Auto-fill (คงค่าเดิมที่ user พิมพ์ไว้)
+        // เพื่อป้องกันข้อมูลกระโดดไปมา และให้ user กรอกเองตามความเข้าใจ
+      }));
+
+      setIsResolvingAddress(false);
+    }, 800);
+
+    return () => clearTimeout(timeoutId);
   }, [location.lat, location.lng]);
 
   // ❌ ตัด Effect ที่ย้ายหมุดตอนพิมพ์ทิ้งไปเลย (แก้ปัญหาหมุดเด้งมั่ว)
@@ -99,7 +114,7 @@ export default function App() {
     if (!navigator.geolocation) return alert("อุปกรณ์ไม่รองรับ GPS");
     navigator.geolocation.getCurrentPosition(
       (pos) => {
-          setLocation({ lat: pos.coords.latitude, lng: pos.coords.longitude });
+        setLocation({ lat: pos.coords.latitude, lng: pos.coords.longitude });
       },
       () => alert("กรุณาเปิด GPS หรืออนุญาตการเข้าถึงตำแหน่ง")
     );
@@ -129,10 +144,10 @@ export default function App() {
   const handleSubmit = async (e: any) => {
     e.preventDefault();
     if (!imageBase64) return alert("⚠️ กรุณาถ่ายรูปหน้างาน");
-    
+
     // Validation เบื้องต้น
     if (!addressData.subdistrict || !addressData.district) {
-        return alert("กรุณากรอกข้อมูล ตำบล และ อำเภอ ให้ครบถ้วน");
+      return alert("กรุณากรอกข้อมูล ตำบล และ อำเภอ ให้ครบถ้วน");
     }
 
     setLoading(true);
@@ -147,14 +162,14 @@ export default function App() {
         reporterType: reporterType,
         location: location,
         address: {
-            province: addressData.province,
-            district: addressData.district,       // ข้อมูลที่ User กรอกเอง
-            subdistrict: addressData.subdistrict, // ข้อมูลที่ User กรอกเอง
-            details: addressData.details 
+          province: addressData.province,
+          district: addressData.district, // ข้อมูลที่ User กรอกเอง
+          subdistrict: addressData.subdistrict, // ข้อมูลที่ User กรอกเอง
+          details: addressData.details,
         },
         imageUrl: imageBase64,
         status: "waiting",
-        timestamp: new Date()
+        timestamp: new Date(),
       });
       alert("✅ แจ้งเหตุสำเร็จ!");
       window.location.reload();
@@ -166,203 +181,353 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-slate-100 flex flex-col items-center py-6 px-4 font-sans overflow-y-auto">
-      
       <div className="w-full max-w-md bg-white rounded-3xl shadow-xl overflow-hidden border border-slate-100 relative mb-6">
-        
         <div className="bg-slate-900 p-6 text-white text-center relative overflow-hidden">
           <div className="absolute top-0 left-0 w-full h-full bg-[radial-gradient(circle_at_top_right,_var(--tw-gradient-stops))] from-slate-800 to-slate-900 opacity-50"></div>
-          
-          <Link to="/login" className="absolute top-4 right-4 flex items-center gap-1.5 bg-white/10 hover:bg-white/20 backdrop-blur-md text-white px-3 py-1.5 rounded-full text-[10px] font-bold transition-all border border-white/10 z-50 cursor-pointer hover:scale-105 active:scale-95">
+
+          <Link
+            to="/login"
+            className="absolute top-4 right-4 flex items-center gap-1.5 bg-white/10 hover:bg-white/20 backdrop-blur-md text-white px-3 py-1.5 rounded-full text-[10px] font-bold transition-all border border-white/10 z-50 cursor-pointer hover:scale-105 active:scale-95"
+          >
             <ShieldCheck size={14} className="text-emerald-400" /> จนท.
           </Link>
-          
+
+          {/* 🟢 ปุ่มจุดอพยพ (เพิ่มใหม่) */}
+          <Link
+            to="/evacuation"
+            className="absolute top-4 left-4 flex items-center gap-1.5 bg-white/10 hover:bg-white/20 backdrop-blur-md text-white px-3 py-1.5 rounded-full text-[10px] font-bold transition-all border border-white/10 z-50 cursor-pointer"
+          >
+            <LucideIcons.Tent size={14} className="text-yellow-400" /> จุดอพยพ
+          </Link>
+
           <div className="relative z-10 flex flex-col items-center">
-             <div className="bg-red-600 p-3 rounded-full shadow-lg shadow-red-900/50 mb-3 animate-pulse">
-                <AlertTriangle className="text-white" size={32} />
-             </div>
-             <h1 className="text-2xl font-black tracking-tight">แจ้งเหตุฉุกเฉิน</h1>
-             <p className="text-slate-400 text-xs mt-1">ระบบ AI กู้ภัยอัจฉริยะ (Flood Rescue)</p>
+            <div className="bg-red-600 p-3 rounded-full shadow-lg shadow-red-900/50 mb-3 animate-pulse">
+              <AlertTriangle className="text-white" size={32} />
+            </div>
+            <h1 className="text-2xl font-black tracking-tight">
+              แจ้งเหตุฉุกเฉิน
+            </h1>
+            <p className="text-slate-400 text-xs mt-1">
+              ระบบ AI กู้ภัยอัจฉริยะ (Flood Rescue)
+            </p>
           </div>
         </div>
 
         <form onSubmit={handleSubmit} className="p-5 space-y-5">
-          
           {/* 1. Map Section */}
           <div className="space-y-2">
-             <div className="flex justify-between items-end px-1">
-                <label className="font-bold text-slate-700 text-sm flex items-center gap-2">
-                  <MapPin size={18} className="text-red-600" /> 1. ระบุตำแหน่ง
-                </label>
-                <button type="button" onClick={handleGetLocation} className="text-[10px] bg-blue-50 text-blue-600 border border-blue-100 px-3 py-1.5 rounded-full hover:bg-blue-100 flex items-center gap-1 font-bold transition-colors">
-                  <Crosshair size={12} /> พิกัดปัจจุบัน
-                </button>
-             </div>
-             
-             <div className="h-64 rounded-2xl overflow-hidden border-2 border-slate-200 shadow-inner relative z-0 group">
-               <Suspense fallback={<div className="h-full flex items-center justify-center bg-slate-50 text-slate-400 text-xs">กำลังโหลดแผนที่...</div>}>
-                 <MapPicker location={location} setLocation={setLocation} />
-               </Suspense>
-               <div className="absolute top-2 left-2 bg-white/90 backdrop-blur text-[10px] px-2 py-1 rounded text-slate-700 font-bold z-[500] pointer-events-none border border-slate-200 shadow-sm">
-                  เลื่อนเป้าให้ตรงจุด
-               </div>
-             </div>
-             
-             <div className="flex justify-between items-center px-2 text-[10px] text-slate-400">
-                <span>Lat: {location.lat.toFixed(5)}, Lng: {location.lng.toFixed(5)}</span>
-                {isResolvingAddress && <span className="flex items-center gap-1 text-orange-500 font-bold"><Loader2 size={10} className="animate-spin"/> ดึงชื่อถนน...</span>}
-             </div>
+            <div className="flex justify-between items-end px-1">
+              <label className="font-bold text-slate-700 text-sm flex items-center gap-2">
+                <MapPin size={18} className="text-red-600" /> 1. ระบุตำแหน่ง
+              </label>
+              <button
+                type="button"
+                onClick={handleGetLocation}
+                className="text-[10px] bg-blue-50 text-blue-600 border border-blue-100 px-3 py-1.5 rounded-full hover:bg-blue-100 flex items-center gap-1 font-bold transition-colors"
+              >
+                <Crosshair size={12} /> พิกัดปัจจุบัน
+              </button>
+            </div>
+
+            <div className="h-64 rounded-2xl overflow-hidden border-2 border-slate-200 shadow-inner relative z-0 group">
+              <Suspense
+                fallback={
+                  <div className="h-full flex items-center justify-center bg-slate-50 text-slate-400 text-xs">
+                    กำลังโหลดแผนที่...
+                  </div>
+                }
+              >
+                <MapPicker location={location} setLocation={setLocation} />
+              </Suspense>
+              <div className="absolute top-2 left-2 bg-white/90 backdrop-blur text-[10px] px-2 py-1 rounded text-slate-700 font-bold z-[500] pointer-events-none border border-slate-200 shadow-sm">
+                เลื่อนเป้าให้ตรงจุด
+              </div>
+            </div>
+
+            <div className="flex justify-between items-center px-2 text-[10px] text-slate-400">
+              <span>
+                Lat: {location.lat.toFixed(5)}, Lng: {location.lng.toFixed(5)}
+              </span>
+              {isResolvingAddress && (
+                <span className="flex items-center gap-1 text-orange-500 font-bold">
+                  <Loader2 size={10} className="animate-spin" /> ดึงชื่อถนน...
+                </span>
+              )}
+            </div>
           </div>
 
           <hr className="border-slate-100" />
 
           {/* 2. Address Form */}
           <div className="space-y-3 bg-slate-50 p-4 rounded-2xl border border-slate-200/60">
-             <label className="font-bold text-slate-700 text-sm flex items-center gap-2">
-               <Home size={18} className="text-orange-500" /> 2. ที่อยู่ (แก้ไขได้)
-             </label>
-             <p className="text-[10px] text-slate-400 ml-6 -mt-2 mb-2">*กรุณากรอกตำบลและอำเภอด้วยตนเอง</p>
-             
-             <div className="relative">
-                <label className="text-[10px] text-slate-500 font-semibold ml-1 mb-0.5 block">บ้านเลขที่ / ซอย / จุดสังเกต</label>
-                <div className="relative">
-                    <input 
-                        value={addressData.details} 
-                        onChange={e => setAddressData({...addressData, details: e.target.value})} 
-                        className="w-full p-3 bg-white border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-orange-500 focus:border-orange-500 outline-none transition-all pr-8" 
-                        placeholder="กรอกรายละเอียด..." 
-                        required 
-                    />
-                    <Edit3 size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-300 pointer-events-none"/>
-                </div>
-             </div>
+            <label className="font-bold text-slate-700 text-sm flex items-center gap-2">
+              <Home size={18} className="text-orange-500" /> 2. ที่อยู่
+              (แก้ไขได้)
+            </label>
+            <p className="text-[10px] text-slate-400 ml-6 -mt-2 mb-2">
+              *กรุณากรอกตำบลและอำเภอด้วยตนเอง
+            </p>
 
-             <div className="grid grid-cols-2 gap-2">
-                <div>
-                    <label className="text-[10px] text-slate-500 font-semibold ml-1 mb-0.5 block">แขวง / ตำบล</label>
-                    <input 
-                        value={addressData.subdistrict} 
-                        onChange={e => setAddressData({...addressData, subdistrict: e.target.value})} 
-                        className="w-full p-2.5 bg-white border border-slate-200 rounded-xl text-xs focus:ring-2 focus:ring-orange-500 outline-none" 
-                        placeholder="กรอกตำบล..." 
-                        required
-                    />
-                </div>
-                <div>
-                    <label className="text-[10px] text-slate-500 font-semibold ml-1 mb-0.5 block">เขต / อำเภอ</label>
-                    <input 
-                        value={addressData.district} 
-                        onChange={e => setAddressData({...addressData, district: e.target.value})} 
-                        className="w-full p-2.5 bg-white border border-slate-200 rounded-xl text-xs focus:ring-2 focus:ring-orange-500 outline-none" 
-                        placeholder="กรอกอำเภอ..." 
-                        required
-                    />
-                </div>
-                <div className="col-span-2">
-                    <label className="text-[10px] text-slate-500 font-semibold ml-1 mb-0.5 block">จังหวัด</label>
-                    <input 
-                        value={addressData.province} 
-                        onChange={e => setAddressData({...addressData, province: e.target.value})} 
-                        className="w-full p-2.5 bg-white border border-slate-200 rounded-xl text-xs focus:ring-2 focus:ring-orange-500 outline-none" 
-                        placeholder="จังหวัด (Auto)" 
-                        required
-                    />
-                </div>
-             </div>
+            <div className="relative">
+              <label className="text-[10px] text-slate-500 font-semibold ml-1 mb-0.5 block">
+                บ้านเลขที่ / ซอย / จุดสังเกต
+              </label>
+              <div className="relative">
+                <input
+                  value={addressData.details}
+                  onChange={(e) =>
+                    setAddressData({ ...addressData, details: e.target.value })
+                  }
+                  className="w-full p-3 bg-white border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-orange-500 focus:border-orange-500 outline-none transition-all pr-8"
+                  placeholder="กรอกรายละเอียด..."
+                  required
+                />
+                <Edit3
+                  size={14}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-300 pointer-events-none"
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <label className="text-[10px] text-slate-500 font-semibold ml-1 mb-0.5 block">
+                  แขวง / ตำบล
+                </label>
+                <input
+                  value={addressData.subdistrict}
+                  onChange={(e) =>
+                    setAddressData({
+                      ...addressData,
+                      subdistrict: e.target.value,
+                    })
+                  }
+                  className="w-full p-2.5 bg-white border border-slate-200 rounded-xl text-xs focus:ring-2 focus:ring-orange-500 outline-none"
+                  placeholder="กรอกตำบล..."
+                  required
+                />
+              </div>
+              <div>
+                <label className="text-[10px] text-slate-500 font-semibold ml-1 mb-0.5 block">
+                  เขต / อำเภอ
+                </label>
+                <input
+                  value={addressData.district}
+                  onChange={(e) =>
+                    setAddressData({ ...addressData, district: e.target.value })
+                  }
+                  className="w-full p-2.5 bg-white border border-slate-200 rounded-xl text-xs focus:ring-2 focus:ring-orange-500 outline-none"
+                  placeholder="กรอกอำเภอ..."
+                  required
+                />
+              </div>
+              <div className="col-span-2">
+                <label className="text-[10px] text-slate-500 font-semibold ml-1 mb-0.5 block">
+                  จังหวัด
+                </label>
+                <input
+                  value={addressData.province}
+                  onChange={(e) =>
+                    setAddressData({ ...addressData, province: e.target.value })
+                  }
+                  className="w-full p-2.5 bg-white border border-slate-200 rounded-xl text-xs focus:ring-2 focus:ring-orange-500 outline-none"
+                  placeholder="จังหวัด (Auto)"
+                  required
+                />
+              </div>
+            </div>
           </div>
 
           {/* 3. Details */}
           <div className="space-y-4 bg-blue-50 p-4 rounded-2xl border border-blue-100/60">
-             <label className="font-bold text-slate-700 text-sm flex items-center gap-2">
-               <Info size={18} className="text-blue-500" /> 3. ข้อมูลสถานการณ์
-             </label>
-             
-             <div className="flex items-center justify-between bg-white p-2 rounded-xl border border-blue-100">
-                <label className="text-xs font-bold text-slate-600 flex items-center gap-2 pl-2"><Users size={16} className="text-blue-400"/> ผู้ประสบภัย (คน)</label>
-                <div className="flex items-center gap-1">
-                    <button type="button" onClick={() => setPeopleCount(Math.max(1, peopleCount - 1))} className="w-8 h-8 flex items-center justify-center bg-blue-50 text-blue-600 hover:bg-blue-100 rounded-lg transition font-bold">-</button>
-                    <span className="w-10 text-center font-bold text-lg text-slate-700">{peopleCount}</span>
-                    <button type="button" onClick={() => setPeopleCount(peopleCount + 1)} className="w-8 h-8 flex items-center justify-center bg-blue-600 text-white hover:bg-blue-700 rounded-lg transition font-bold shadow-sm shadow-blue-200">+</button>
-                </div>
-             </div>
+            <label className="font-bold text-slate-700 text-sm flex items-center gap-2">
+              <Info size={18} className="text-blue-500" /> 3. ข้อมูลสถานการณ์
+            </label>
 
-             <div>
-                <label className="text-[10px] font-bold text-slate-500 ml-1 mb-1 block">ระดับน้ำปัจจุบัน</label>
-                <div className="relative">
-                    <Droplets className="absolute left-3 top-1/2 -translate-y-1/2 text-blue-400 w-4 h-4" />
-                    <select value={waterLevel} onChange={(e) => setWaterLevel(e.target.value)} className="w-full pl-9 p-2.5 bg-white border border-blue-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-blue-500 appearance-none">
-                        <option value="ท่วมทางเท้า/ถนน">ท่วมทางเท้า / ถนน</option>
-                        <option value="ท่วมถึงเข่า">ท่วมถึงเข่า (0.5 เมตร)</option>
-                        <option value="ท่วมถึงเอว">ท่วมถึงเอว (1 เมตร)</option>
-                        <option value="ท่วมถึงอก/มิดหัว">ท่วมถึงอก / มิดหัว (วิกฤต)</option>
-                        <option value="มิดหลังคา">มิดหลังคา (ต้องการเรือด่วน)</option>
-                    </select>
-                </div>
-             </div>
+            <div className="flex items-center justify-between bg-white p-2 rounded-xl border border-blue-100">
+              <label className="text-xs font-bold text-slate-600 flex items-center gap-2 pl-2">
+                <Users size={16} className="text-blue-400" /> ผู้ประสบภัย (คน)
+              </label>
+              <div className="flex items-center gap-1">
+                <button
+                  type="button"
+                  onClick={() => setPeopleCount(Math.max(1, peopleCount - 1))}
+                  className="w-8 h-8 flex items-center justify-center bg-blue-50 text-blue-600 hover:bg-blue-100 rounded-lg transition font-bold"
+                >
+                  -
+                </button>
+                <span className="w-10 text-center font-bold text-lg text-slate-700">
+                  {peopleCount}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setPeopleCount(peopleCount + 1)}
+                  className="w-8 h-8 flex items-center justify-center bg-blue-600 text-white hover:bg-blue-700 rounded-lg transition font-bold shadow-sm shadow-blue-200"
+                >
+                  +
+                </button>
+              </div>
+            </div>
 
-             <div>
-                <label className="text-[10px] font-bold text-slate-500 ml-1 mb-1 block">สถานะผู้แจ้ง</label>
-                <div className="flex gap-2">
-                    {['ผู้ประสบภัยเอง', 'ญาติ/คนรู้จัก', 'พลเมืองดี'].map((type) => (
-                        <button key={type} type="button" onClick={() => setReporterType(type)} className={`flex-1 py-2 text-[10px] font-bold rounded-lg border transition-all ${reporterType === type ? 'bg-blue-600 text-white border-blue-600 shadow-md shadow-blue-200' : 'bg-white text-slate-500 border-slate-200 hover:bg-blue-50'}`}>{type}</button>
-                    ))}
-                </div>
-             </div>
+            <div>
+              <label className="text-[10px] font-bold text-slate-500 ml-1 mb-1 block">
+                ระดับน้ำปัจจุบัน
+              </label>
+              <div className="relative">
+                <Droplets className="absolute left-3 top-1/2 -translate-y-1/2 text-blue-400 w-4 h-4" />
+                <select
+                  value={waterLevel}
+                  onChange={(e) => setWaterLevel(e.target.value)}
+                  className="w-full pl-9 p-2.5 bg-white border border-blue-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-blue-500 appearance-none"
+                >
+                  <option value="ท่วมทางเท้า/ถนน">ท่วมทางเท้า / ถนน</option>
+                  <option value="ท่วมถึงเข่า">ท่วมถึงเข่า (0.5 เมตร)</option>
+                  <option value="ท่วมถึงเอว">ท่วมถึงเอว (1 เมตร)</option>
+                  <option value="ท่วมถึงอก/มิดหัว">
+                    ท่วมถึงอก / มิดหัว (วิกฤต)
+                  </option>
+                  <option value="มิดหลังคา">มิดหลังคา (ต้องการเรือด่วน)</option>
+                </select>
+              </div>
+            </div>
+
+            <div>
+              <label className="text-[10px] font-bold text-slate-500 ml-1 mb-1 block">
+                สถานะผู้แจ้ง
+              </label>
+              <div className="flex gap-2">
+                {["ผู้ประสบภัยเอง", "ญาติ/คนรู้จัก", "พลเมืองดี"].map(
+                  (type) => (
+                    <button
+                      key={type}
+                      type="button"
+                      onClick={() => setReporterType(type)}
+                      className={`flex-1 py-2 text-[10px] font-bold rounded-lg border transition-all ${
+                        reporterType === type
+                          ? "bg-blue-600 text-white border-blue-600 shadow-md shadow-blue-200"
+                          : "bg-white text-slate-500 border-slate-200 hover:bg-blue-50"
+                      }`}
+                    >
+                      {type}
+                    </button>
+                  )
+                )}
+              </div>
+            </div>
           </div>
 
           {/* 4. Contact */}
           <div className="space-y-3">
-             <div className="grid grid-cols-2 gap-3">
-                <div>
-                   <label className="text-[10px] font-bold text-slate-500 ml-1">ชื่อผู้แจ้ง</label>
-                   <div className="relative mt-1">
-                     <User className="absolute left-3 top-2.5 text-slate-400 w-4 h-4" />
-                     <input name="name" className="w-full pl-9 p-2.5 bg-white border border-slate-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-slate-400" required placeholder="ชื่อ-นามสกุล" />
-                   </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="text-[10px] font-bold text-slate-500 ml-1">
+                  ชื่อผู้แจ้ง
+                </label>
+                <div className="relative mt-1">
+                  <User className="absolute left-3 top-2.5 text-slate-400 w-4 h-4" />
+                  <input
+                    name="name"
+                    className="w-full pl-9 p-2.5 bg-white border border-slate-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-slate-400"
+                    required
+                    placeholder="ชื่อ-นามสกุล"
+                  />
                 </div>
-                <div>
-                   <label className="text-[10px] font-bold text-slate-500 ml-1">เบอร์ติดต่อ</label>
-                   <div className="relative mt-1">
-                     <Phone className="absolute left-3 top-2.5 text-slate-400 w-4 h-4" />
-                     <input name="contact" type="tel" className="w-full pl-9 p-2.5 bg-white border border-slate-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-slate-400" required placeholder="08x-xxx-xxxx" />
-                   </div>
+              </div>
+              <div>
+                <label className="text-[10px] font-bold text-slate-500 ml-1">
+                  เบอร์ติดต่อ
+                </label>
+                <div className="relative mt-1">
+                  <Phone className="absolute left-3 top-2.5 text-slate-400 w-4 h-4" />
+                  <input
+                    name="contact"
+                    type="tel"
+                    className="w-full pl-9 p-2.5 bg-white border border-slate-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-slate-400"
+                    required
+                    placeholder="08x-xxx-xxxx"
+                  />
                 </div>
-             </div>
-             <div>
-                 <label className="text-[10px] font-bold text-slate-500 ml-1">รายละเอียดเพิ่มเติม</label>
-                 <div className="relative mt-1">
-                    <FileText className="absolute left-3 top-3 text-slate-400 w-4 h-4" />
-                    <textarea name="description" className="w-full pl-9 p-3 bg-white border border-slate-200 rounded-xl text-sm h-20 outline-none focus:ring-2 focus:ring-slate-400 resize-none" placeholder="เช่น ผู้ป่วยติดเตียง, คนชรา, อาหารหมด, ตัดไฟแล้ว..." />
-                 </div>
-             </div>
+              </div>
+            </div>
+            <div>
+              <label className="text-[10px] font-bold text-slate-500 ml-1">
+                รายละเอียดเพิ่มเติม
+              </label>
+              <div className="relative mt-1">
+                <FileText className="absolute left-3 top-3 text-slate-400 w-4 h-4" />
+                <textarea
+                  name="description"
+                  className="w-full pl-9 p-3 bg-white border border-slate-200 rounded-xl text-sm h-20 outline-none focus:ring-2 focus:ring-slate-400 resize-none"
+                  placeholder="เช่น ผู้ป่วยติดเตียง, คนชรา, อาหารหมด, ตัดไฟแล้ว..."
+                />
+              </div>
+            </div>
           </div>
 
           {/* 5. Photo */}
-          <div className={`border-2 border-dashed rounded-2xl p-6 text-center cursor-pointer relative group transition-all ${imageBase64 ? 'border-emerald-500 bg-emerald-50/30' : 'border-slate-300 hover:border-blue-400 hover:bg-blue-50/30'}`}>
-            <input type="file" onChange={handleImage} className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10" accept="image/*" />
+          <div
+            className={`border-2 border-dashed rounded-2xl p-6 text-center cursor-pointer relative group transition-all ${
+              imageBase64
+                ? "border-emerald-500 bg-emerald-50/30"
+                : "border-slate-300 hover:border-blue-400 hover:bg-blue-50/30"
+            }`}
+          >
+            <input
+              type="file"
+              onChange={handleImage}
+              className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
+              accept="image/*"
+            />
             {imageBase64 ? (
-               <div className="relative">
-                   <img src={imageBase64} className="h-40 mx-auto rounded-lg shadow-md object-cover" />
-                   <div className="absolute bottom-2 right-1/2 translate-x-1/2 bg-black/60 text-white text-[10px] px-2 py-1 rounded-full backdrop-blur-sm">แตะเพื่อเปลี่ยนรูป</div>
-               </div>
+              <div className="relative">
+                <img
+                  src={imageBase64}
+                  className="h-40 mx-auto rounded-lg shadow-md object-cover"
+                />
+                <div className="absolute bottom-2 right-1/2 translate-x-1/2 bg-black/60 text-white text-[10px] px-2 py-1 rounded-full backdrop-blur-sm">
+                  แตะเพื่อเปลี่ยนรูป
+                </div>
+              </div>
             ) : (
-               <div className="py-2">
-                 <div className="w-12 h-12 bg-blue-100 text-blue-500 rounded-full flex items-center justify-center mx-auto mb-3 group-hover:scale-110 transition-transform"><Camera size={24} /></div>
-                 <h3 className="text-sm font-bold text-slate-700">ถ่ายรูปหน้างาน (จำเป็น)</h3>
-                 <p className="text-xs text-slate-400 mt-1">เพื่อให้ AI ประเมินความรุนแรง</p>
-               </div>
+              <div className="py-2">
+                <div className="w-12 h-12 bg-blue-100 text-blue-500 rounded-full flex items-center justify-center mx-auto mb-3 group-hover:scale-110 transition-transform">
+                  <Camera size={24} />
+                </div>
+                <h3 className="text-sm font-bold text-slate-700">
+                  ถ่ายรูปหน้างาน (จำเป็น)
+                </h3>
+                <p className="text-xs text-slate-400 mt-1">
+                  เพื่อให้ AI ประเมินความรุนแรง
+                </p>
+              </div>
             )}
           </div>
 
-          <button disabled={loading} className="w-full py-4 bg-gradient-to-r from-red-600 to-red-700 hover:from-red-700 hover:to-red-800 text-white font-bold text-lg rounded-2xl shadow-lg shadow-red-200 flex justify-center items-center gap-2 transition-all active:scale-95 disabled:opacity-70 disabled:cursor-not-allowed">
-            {loading ? <Loader2 className="animate-spin" size={24} /> : <><Send size={20} /> ส่งแจ้งเหตุทันที</>}
+          <button
+            disabled={loading}
+            className="w-full py-4 bg-gradient-to-r from-red-600 to-red-700 hover:from-red-700 hover:to-red-800 text-white font-bold text-lg rounded-2xl shadow-lg shadow-red-200 flex justify-center items-center gap-2 transition-all active:scale-95 disabled:opacity-70 disabled:cursor-not-allowed"
+          >
+            {loading ? (
+              <Loader2 className="animate-spin" size={24} />
+            ) : (
+              <>
+                <Send size={20} /> ส่งแจ้งเหตุทันที
+              </>
+            )}
           </button>
-
         </form>
       </div>
 
       <footer className="text-center text-slate-400 text-[10px] font-medium opacity-80 pb-6">
-         <p>&copy; {new Date().getFullYear()} Flood Rescue AI System</p>
-         <p className="flex items-center justify-center gap-1 mt-1">Developed with <Heart size={10} className="text-red-400 fill-current animate-pulse" /> by <span className="text-slate-600 font-bold">Chawanwit</span></p>
+        <p>&copy; {new Date().getFullYear()} Flood Rescue AI System</p>
+        <p className="flex items-center justify-center gap-1 mt-1">
+          Developed with{" "}
+          <Heart
+            size={10}
+            className="text-red-400 fill-current animate-pulse"
+          />{" "}
+          by <span className="text-slate-600 font-bold">Chawanwit</span>
+        </p>
       </footer>
     </div>
   );
