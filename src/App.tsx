@@ -15,13 +15,14 @@ const {
 // --- Lazy Load Map ---
 const MapPicker = lazy(() => import("./components/MapPicker") as any); 
 
-// 🟢 ฟังก์ชัน 1: แปลงพิกัด -> ที่อยู่ (Reverse Geocoding)
+// 🟢 ฟังก์ชันแปลงพิกัด -> ที่อยู่ (ดึงเฉพาะถนน/ซอย และจังหวัด)
 const getAddressFromCoords = async (lat: number, lng: number) => {
   try {
     const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=18&addressdetails=1&accept-language=th`);
     const data = await res.json();
     const addr = data.address || {};
     
+    // สร้างคำบรรยายรายละเอียด (เน้นจุดสังเกต ถนน ซอย)
     const detailsParts = [];
     if (addr.house_number) detailsParts.push(`บ้านเลขที่ ${addr.house_number}`);
     if (addr.village) detailsParts.push(`หมู่บ้าน${addr.village}`);
@@ -31,31 +32,19 @@ const getAddressFromCoords = async (lat: number, lng: number) => {
     if (addr.landmark) detailsParts.push(addr.landmark);
     
     return {
+      // รายละเอียด (บ้านเลขที่/ถนน) ให้ Auto-fill เหมือนเดิม เพราะพิมพ์เองยาก
       details: detailsParts.join(" ") || "", 
+      
+      // จังหวัด ให้ Auto-fill เพราะมักจะถูกต้องเสมอ
+      province: addr.province || addr.state || "", 
+      
+      // ส่วนตำบล/อำเภอ ส่งค่ากลับไปเฉยๆ แต่เราจะไม่เอาไปทับใน Form (ตาม Requirement)
       subdistrict: addr.tambon || addr.suburb || addr.quarter || "", 
       district: addr.amphoe || addr.district || addr.city_district || "", 
-      province: addr.province || addr.state || "", 
-      postcode: addr.postcode || "",
-      full: data.display_name
     };
   } catch (error) {
     console.error("Reverse Geocode Error:", error);
-    return { details: "", subdistrict: "", district: "", province: "", postcode: "", full: "" };
-  }
-};
-
-// 🟢 ฟังก์ชัน 2: แปลงที่อยู่ -> พิกัด (Forward Geocoding)
-const getCoordsFromAddress = async (address: string) => {
-  try {
-    const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(address)}&limit=1&accept-language=th`);
-    const data = await res.json();
-    if (data && data.length > 0) {
-      return { lat: parseFloat(data[0].lat), lng: parseFloat(data[0].lon) };
-    }
-    return null;
-  } catch (error) {
-    console.error("Forward Geocode Error:", error);
-    return null;
+    return { details: "", province: "", subdistrict: "", district: "" };
   }
 };
 
@@ -66,11 +55,6 @@ export default function App() {
   
   // State สถานะการโหลด
   const [isResolvingAddress, setIsResolvingAddress] = useState(false); 
-  const [isResolvingCoords, setIsResolvingCoords] = useState(false);   
-
-  // Refs สำหรับป้องกัน Loop
-  const isInternalLocationUpdate = useRef(false); 
-  const isInternalAddressUpdate = useRef(false);  
 
   // State ข้อมูลฟอร์ม
   const [addressData, setAddressData] = useState({ 
@@ -84,25 +68,23 @@ export default function App() {
   const [waterLevel, setWaterLevel] = useState("ท่วมทางเท้า/ถนน");
   const [reporterType, setReporterType] = useState("ผู้ประสบภัยเอง"); 
 
-  // Effect 1: พิกัด -> ที่อยู่
+  // ------------------------------------------------------------
+  // 🔄 Effect: เมื่อพิกัดเปลี่ยน (ลากแมพ) -> อัปเดตเฉพาะ ถนน/จังหวัด
+  // ------------------------------------------------------------
   useEffect(() => {
-      if (isInternalLocationUpdate.current) {
-          isInternalLocationUpdate.current = false;
-          return;
-      }
-
       const timeoutId = setTimeout(async () => {
           setIsResolvingAddress(true);
           const addr = await getAddressFromCoords(location.lat, location.lng);
           
-          isInternalAddressUpdate.current = true;
-          
-          setAddressData({
-              province: addr.province,
-              district: addr.district,
-              subdistrict: addr.subdistrict,
-              details: addr.details 
-          });
+          setAddressData(prev => ({
+              ...prev,
+              // 🟢 Auto-fill เฉพาะ จังหวัด และ รายละเอียด (ถนน/ซอย)
+              province: addr.province, 
+              details: addr.details,
+              
+              // 🔴 ตำบล/อำเภอ ไม่ต้อง Auto-fill (คงค่าเดิมที่ user พิมพ์ไว้)
+              // เพื่อป้องกันข้อมูลกระโดดไปมา และให้ user กรอกเองตามความเข้าใจ
+          }));
           
           setIsResolvingAddress(false);
       }, 800); 
@@ -110,30 +92,7 @@ export default function App() {
       return () => clearTimeout(timeoutId);
   }, [location.lat, location.lng]);
 
-  // Effect 2: ที่อยู่ -> พิกัด
-  useEffect(() => {
-      if (isInternalAddressUpdate.current) {
-          isInternalAddressUpdate.current = false;
-          return;
-      }
-
-      const query = `${addressData.subdistrict} ${addressData.district} ${addressData.province}`.trim();
-      if (query.length < 5) return;
-
-      const timeoutId = setTimeout(async () => {
-          setIsResolvingCoords(true);
-          const coords = await getCoordsFromAddress(query);
-          
-          if (coords) {
-              isInternalLocationUpdate.current = true;
-              setLocation(coords);
-          }
-          setIsResolvingCoords(false);
-      }, 1500); 
-
-      return () => clearTimeout(timeoutId);
-  }, [addressData.province, addressData.district, addressData.subdistrict]);
-
+  // ❌ ตัด Effect ที่ย้ายหมุดตอนพิมพ์ทิ้งไปเลย (แก้ปัญหาหมุดเด้งมั่ว)
 
   const handleGetLocation = (e: any) => {
     e.preventDefault();
@@ -170,6 +129,12 @@ export default function App() {
   const handleSubmit = async (e: any) => {
     e.preventDefault();
     if (!imageBase64) return alert("⚠️ กรุณาถ่ายรูปหน้างาน");
+    
+    // Validation เบื้องต้น
+    if (!addressData.subdistrict || !addressData.district) {
+        return alert("กรุณากรอกข้อมูล ตำบล และ อำเภอ ให้ครบถ้วน");
+    }
+
     setLoading(true);
     try {
       const form = e.target;
@@ -183,8 +148,8 @@ export default function App() {
         location: location,
         address: {
             province: addressData.province,
-            district: addressData.district,
-            subdistrict: addressData.subdistrict,
+            district: addressData.district,       // ข้อมูลที่ User กรอกเอง
+            subdistrict: addressData.subdistrict, // ข้อมูลที่ User กรอกเอง
             details: addressData.details 
         },
         imageUrl: imageBase64,
@@ -207,14 +172,8 @@ export default function App() {
         <div className="bg-slate-900 p-6 text-white text-center relative overflow-hidden">
           <div className="absolute top-0 left-0 w-full h-full bg-[radial-gradient(circle_at_top_right,_var(--tw-gradient-stops))] from-slate-800 to-slate-900 opacity-50"></div>
           
-          {/* 🟢 แก้ลิงก์ตรงนี้: ให้ไปที่ /login */}
           <Link to="/login" className="absolute top-4 right-4 flex items-center gap-1.5 bg-white/10 hover:bg-white/20 backdrop-blur-md text-white px-3 py-1.5 rounded-full text-[10px] font-bold transition-all border border-white/10 z-50 cursor-pointer hover:scale-105 active:scale-95">
             <ShieldCheck size={14} className="text-emerald-400" /> จนท.
-          </Link>
-
-          {/* 🟢 ปุ่มจุดอพยพ (เพิ่มใหม่) */}
-          <Link to="/evacuation" className="absolute top-4 left-4 flex items-center gap-1.5 bg-white/10 hover:bg-white/20 backdrop-blur-md text-white px-3 py-1.5 rounded-full text-[10px] font-bold transition-all border border-white/10 z-50 cursor-pointer">
-             <LucideIcons.Tent size={14} className="text-yellow-400" /> จุดอพยพ
           </Link>
           
           <div className="relative z-10 flex flex-col items-center">
@@ -228,7 +187,7 @@ export default function App() {
 
         <form onSubmit={handleSubmit} className="p-5 space-y-5">
           
-          {/* Map Section */}
+          {/* 1. Map Section */}
           <div className="space-y-2">
              <div className="flex justify-between items-end px-1">
                 <label className="font-bold text-slate-700 text-sm flex items-center gap-2">
@@ -244,29 +203,24 @@ export default function App() {
                  <MapPicker location={location} setLocation={setLocation} />
                </Suspense>
                <div className="absolute top-2 left-2 bg-white/90 backdrop-blur text-[10px] px-2 py-1 rounded text-slate-700 font-bold z-[500] pointer-events-none border border-slate-200 shadow-sm">
-                  เลื่อนหมุดให้ตรงจุด
+                  เลื่อนเป้าให้ตรงจุด
                </div>
-               {isResolvingCoords && (
-                   <div className="absolute inset-0 bg-white/50 backdrop-blur-sm z-[600] flex items-center justify-center text-xs font-bold text-blue-600 animate-pulse">
-                       กำลังย้ายหมุดไปที่อยู่...
-                   </div>
-               )}
              </div>
              
              <div className="flex justify-between items-center px-2 text-[10px] text-slate-400">
                 <span>Lat: {location.lat.toFixed(5)}, Lng: {location.lng.toFixed(5)}</span>
-                {isResolvingAddress && <span className="flex items-center gap-1 text-orange-500 font-bold"><Loader2 size={10} className="animate-spin"/> ดึงชื่อสถานที่...</span>}
+                {isResolvingAddress && <span className="flex items-center gap-1 text-orange-500 font-bold"><Loader2 size={10} className="animate-spin"/> ดึงชื่อถนน...</span>}
              </div>
           </div>
 
           <hr className="border-slate-100" />
 
-          {/* Address Form */}
+          {/* 2. Address Form */}
           <div className="space-y-3 bg-slate-50 p-4 rounded-2xl border border-slate-200/60">
              <label className="font-bold text-slate-700 text-sm flex items-center gap-2">
                <Home size={18} className="text-orange-500" /> 2. ที่อยู่ (แก้ไขได้)
              </label>
-             <p className="text-[10px] text-slate-400 ml-6 -mt-2 mb-2">*พิมพ์ชื่อจังหวัด/อำเภอ หมุดจะขยับตาม</p>
+             <p className="text-[10px] text-slate-400 ml-6 -mt-2 mb-2">*กรุณากรอกตำบลและอำเภอด้วยตนเอง</p>
              
              <div className="relative">
                 <label className="text-[10px] text-slate-500 font-semibold ml-1 mb-0.5 block">บ้านเลขที่ / ซอย / จุดสังเกต</label>
@@ -285,20 +239,38 @@ export default function App() {
              <div className="grid grid-cols-2 gap-2">
                 <div>
                     <label className="text-[10px] text-slate-500 font-semibold ml-1 mb-0.5 block">แขวง / ตำบล</label>
-                    <input value={addressData.subdistrict} onChange={e => setAddressData({...addressData, subdistrict: e.target.value})} className="w-full p-2.5 bg-white border border-slate-200 rounded-xl text-xs focus:ring-2 focus:ring-orange-500 outline-none" placeholder="ตำบล" required/>
+                    <input 
+                        value={addressData.subdistrict} 
+                        onChange={e => setAddressData({...addressData, subdistrict: e.target.value})} 
+                        className="w-full p-2.5 bg-white border border-slate-200 rounded-xl text-xs focus:ring-2 focus:ring-orange-500 outline-none" 
+                        placeholder="กรอกตำบล..." 
+                        required
+                    />
                 </div>
                 <div>
                     <label className="text-[10px] text-slate-500 font-semibold ml-1 mb-0.5 block">เขต / อำเภอ</label>
-                    <input value={addressData.district} onChange={e => setAddressData({...addressData, district: e.target.value})} className="w-full p-2.5 bg-white border border-slate-200 rounded-xl text-xs focus:ring-2 focus:ring-orange-500 outline-none" placeholder="อำเภอ" required/>
+                    <input 
+                        value={addressData.district} 
+                        onChange={e => setAddressData({...addressData, district: e.target.value})} 
+                        className="w-full p-2.5 bg-white border border-slate-200 rounded-xl text-xs focus:ring-2 focus:ring-orange-500 outline-none" 
+                        placeholder="กรอกอำเภอ..." 
+                        required
+                    />
                 </div>
                 <div className="col-span-2">
                     <label className="text-[10px] text-slate-500 font-semibold ml-1 mb-0.5 block">จังหวัด</label>
-                    <input value={addressData.province} onChange={e => setAddressData({...addressData, province: e.target.value})} className="w-full p-2.5 bg-white border border-slate-200 rounded-xl text-xs focus:ring-2 focus:ring-orange-500 outline-none" placeholder="จังหวัด" required/>
+                    <input 
+                        value={addressData.province} 
+                        onChange={e => setAddressData({...addressData, province: e.target.value})} 
+                        className="w-full p-2.5 bg-white border border-slate-200 rounded-xl text-xs focus:ring-2 focus:ring-orange-500 outline-none" 
+                        placeholder="จังหวัด (Auto)" 
+                        required
+                    />
                 </div>
              </div>
           </div>
 
-          {/* Details */}
+          {/* 3. Details */}
           <div className="space-y-4 bg-blue-50 p-4 rounded-2xl border border-blue-100/60">
              <label className="font-bold text-slate-700 text-sm flex items-center gap-2">
                <Info size={18} className="text-blue-500" /> 3. ข้อมูลสถานการณ์
@@ -337,7 +309,7 @@ export default function App() {
              </div>
           </div>
 
-          {/* Contact */}
+          {/* 4. Contact */}
           <div className="space-y-3">
              <div className="grid grid-cols-2 gap-3">
                 <div>
@@ -364,7 +336,7 @@ export default function App() {
              </div>
           </div>
 
-          {/* Photo */}
+          {/* 5. Photo */}
           <div className={`border-2 border-dashed rounded-2xl p-6 text-center cursor-pointer relative group transition-all ${imageBase64 ? 'border-emerald-500 bg-emerald-50/30' : 'border-slate-300 hover:border-blue-400 hover:bg-blue-50/30'}`}>
             <input type="file" onChange={handleImage} className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10" accept="image/*" />
             {imageBase64 ? (
